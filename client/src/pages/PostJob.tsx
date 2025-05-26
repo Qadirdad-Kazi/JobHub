@@ -1,85 +1,104 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
-import { useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import { getLocalUser } from "@/lib/utils";
-import { JobForm } from "@/components/JobForm";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChevronLeft } from "lucide-react";
+import React from 'react';
+import {
+  Container,
+  Typography,
+  Paper,
+  Box,
+  TextField,
+  Button,
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+} from '@mui/material';
 
-export default function PostJob() {
-  const [, navigate] = useLocation();
-  const { toast } = useToast();
-  const user = getLocalUser();
-  
-  const postJobMutation = useMutation({
-    mutationFn: (jobData: any) => {
-      return apiRequest("POST", "/api/jobs", jobData);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/employer/jobs'] });
-      toast({
-        title: "Job Posted",
-        description: "Your job has been posted successfully.",
-      });
-      navigate("/employer/dashboard");
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error instanceof Error 
-          ? error.message 
-          : "There was an error posting your job.",
-        variant: "destructive",
-      });
-    },
-  });
-  
-  const handleSubmit = (formData: any) => {
-    // For demo purposes, use a default employer ID if user is not logged in
-    const employerId = user ? user.id : 1; // Use default ID 1 for demo
-    
-    // Add employer ID to the form data
-    const jobData = {
-      ...formData,
-      employerId: employerId,
-    };
-    
-    postJobMutation.mutate(jobData);
-  };
-  
+export const PostJob: React.FC = () => {
   return (
-    <div className="bg-gray-50 min-h-screen py-8">
-      <div className="container mx-auto px-4">
-        <div className="max-w-3xl mx-auto">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => navigate("/employer/dashboard")}
-            className="mb-6"
-          >
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
-          </Button>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">Post a New Job</CardTitle>
-              <CardDescription>
-                Fill out the form below to create a new job listing.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <JobForm 
-                onSubmit={handleSubmit} 
-                isSubmitting={postJobMutation.isPending}
-              />
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
+    <Container maxWidth="md">
+      <Box sx={{ my: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Post a New Job
+        </Typography>
+        
+        <Paper sx={{ p: 4 }}>
+          <form>
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Job Title"
+                  required
+                  variant="outlined"
+                />
+              </Grid>
+              
+              <Grid item xs={12}>
+                <FormControl fullWidth required>
+                  <InputLabel>Job Type</InputLabel>
+                  <Select label="Job Type">
+                    <MenuItem value="full-time">Full-time</MenuItem>
+                    <MenuItem value="part-time">Part-time</MenuItem>
+                    <MenuItem value="contract">Contract</MenuItem>
+                    <MenuItem value="internship">Internship</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Location"
+                  required
+                  variant="outlined"
+                />
+              </Grid>
+              
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Salary Range"
+                  variant="outlined"
+                  placeholder="e.g., $80,000 - $100,000"
+                />
+              </Grid>
+              
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Job Description"
+                  required
+                  multiline
+                  rows={6}
+                  variant="outlined"
+                />
+              </Grid>
+              
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Requirements"
+                  required
+                  multiline
+                  rows={4}
+                  variant="outlined"
+                />
+              </Grid>
+              
+              <Grid item xs={12}>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  color="primary"
+                  size="large"
+                >
+                  Post Job
+                </Button>
+              </Grid>
+            </Grid>
+          </form>
+        </Paper>
+      </Box>
+    </Container>
   );
-}
+};

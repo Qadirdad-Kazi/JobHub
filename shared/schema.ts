@@ -1,8 +1,11 @@
 // MongoDB Schemas and Types
-export const UserRole = {
-  JOBSEEKER: "jobseeker",
-  EMPLOYER: "employer",
-} as const;
+export enum UserRole {
+  JOBSEEKER = 'jobseeker',
+  EMPLOYER = 'employer'
+}
+
+// Using a type alias to get the string literal union type
+export type UserRoleType = keyof typeof UserRole;
 
 export const JobType = {
   FULLTIME: "full-time",
@@ -20,21 +23,15 @@ export const ApplicationStatus = {
   ACCEPTED: "accepted",
 } as const;
 
-export interface User {
-  _id?: string;
+export type User = {
+  _id: string;
   email: string;
-  password: string;
   name: string;
-  role: 'user' | 'admin';
+  username: string;
+  role: UserRoleType;
   createdAt: Date;
   updatedAt: Date;
-  profileImage?: string;
-  bio?: string;
-  location?: string;
-  skills?: string[];
-  experience?: string[];
-  education?: string[];
-}
+};
 
 export interface Resume {
   _id?: string;
@@ -72,8 +69,8 @@ export interface Resume {
       link?: string;
     }>;
   };
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface Job {
@@ -89,24 +86,26 @@ export interface Job {
     max: number;
     currency: string;
   };
-  postedBy: string; // userId
-  createdAt: Date;
-  updatedAt: Date;
+  postedBy: string;
+  createdAt?: Date;
+  updatedAt?: Date;
   expiresAt?: Date;
   status: 'active' | 'closed' | 'draft';
 }
 
-export interface Application {
-  _id?: string;
-  jobId: string;
-  userId: string;
-  resumeId: string;
-  status: 'pending' | 'reviewed' | 'accepted' | 'rejected';
+export type Application = {
+  _id: string;
+  jobId: string | Job;
+  userId: string | User;
+  resumeId: string | Resume;
+  status: 'pending' | 'reviewed' | 'accepted' | 'rejected' | 'withdrawn';
   coverLetter?: string;
+  notes?: string;
+  withdrawalReason?: string;
+  withdrawnAt?: Date;
   appliedAt: Date;
   updatedAt: Date;
-  notes?: string;
-}
+};
 
 export interface Testimonial {
   _id?: string;

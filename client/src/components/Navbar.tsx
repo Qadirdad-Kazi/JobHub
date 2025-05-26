@@ -1,295 +1,265 @@
-import { useState } from "react";
-import { Link, useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import { queryClient } from "@/lib/queryClient";
-import { isAuthenticated, getUserRole } from "@/lib/utils";
-import AuthModal from "./AuthModal";
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import {
+  AppBar,
+  Box,
+  Toolbar,
+  IconButton,
+  Typography,
+  Menu,
+  Container,
+  Avatar,
+  Button,
+  Tooltip,
+  MenuItem,
+  useTheme,
+  useMediaQuery,
+  Divider,
+} from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import WorkIcon from '@mui/icons-material/Work';
+import BusinessIcon from '@mui/icons-material/Business';
 
-export default function Navbar() {
-  const [location, navigate] = useLocation();
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<"signIn" | "signUp">("signIn");
-  const { toast } = useToast();
+export const Navbar: React.FC = () => {
+  const { user, logout, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  const toggleMobileMenu = () => {
-    setShowMobileMenu(!showMobileMenu);
+  const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
+  const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
+
+  const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorElNav(event.currentTarget);
+  };
+  const handleOpenUserMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorElUser(event.currentTarget);
   };
 
-  const openAuthModal = (mode: "signIn" | "signUp") => {
-    setAuthMode(mode);
-    setShowAuthModal(true);
+  const handleCloseNavMenu = () => {
+    setAnchorElNav(null);
+  };
+
+  const handleCloseUserMenu = () => {
+    setAnchorElUser(null);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    toast({
-      title: "Logged out successfully",
-      description: "You have been logged out of your account.",
-    });
-    navigate("/");
+    handleCloseUserMenu();
+    logout();
+    navigate('/');
   };
 
-  const isActive = (path: string) => {
-    return location === path;
+  // Navigation items based on authentication status and role
+  const getNavigationItems = () => {
+    const items = [
+      { label: 'Home', path: '/' },
+      { label: 'Jobs', path: '/jobs' },
+    ];
+
+    if (isAuthenticated && user) {
+      if (user.role === 'jobseeker') {
+        items.push(
+          { label: 'My Applications', path: '/jobseeker/applications' },
+          { label: 'My Resume', path: '/resume-builder' }
+        );
+      } else if (user.role === 'employer') {
+        items.push(
+          { label: 'Post Job', path: '/employer/post-job' },
+          { label: 'Manage Jobs', path: '/employer/jobs' }
+        );
+      }
+    }
+
+    return items;
   };
 
-  const isLoggedIn = isAuthenticated();
-  const userRole = getUserRole();
+  const navigationItems = getNavigationItems();
 
   return (
-    <>
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <Link href="/">
-                  <span className="text-primary font-bold text-xl cursor-pointer">JobHub</span>
-                </Link>
-              </div>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                <Link href="/" className={`${isActive("/") ? "border-primary text-gray-900" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}>
-                  Home
-                </Link>
-                <Link href="/jobs" className={`${isActive("/jobs") ? "border-primary text-gray-900" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}>
-                  Jobs
-                </Link>
-                {(isLoggedIn && userRole === "jobseeker") && (
-                  <Link href="/resume-builder" className={`${isActive("/resume-builder") ? "border-primary text-gray-900" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}>
-                    Resume Builder
-                  </Link>
-                )}
-                {isLoggedIn ? (
-                  userRole === "employer" ? (
-                    <Link href="/employer/dashboard" className={`${isActive("/employer/dashboard") ? "border-primary text-gray-900" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}>
-                      Dashboard
-                    </Link>
-                  ) : (
-                    <Link href="/jobseeker/dashboard" className={`${isActive("/jobseeker/dashboard") ? "border-primary text-gray-900" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}>
-                      Dashboard
-                    </Link>
-                  )
-                ) : (
-                  <Link href="/for-employers" className={`${isActive("/for-employers") ? "border-primary text-gray-900" : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium`}>
-                    For Employers
-                  </Link>
-                )}
-              </div>
-            </div>
-            <div className="hidden sm:ml-6 sm:flex sm:items-center sm:space-x-4">
-              {isLoggedIn ? (
+    <AppBar position="static" sx={{ bgcolor: 'background.paper', color: 'text.primary', boxShadow: 1 }}>
+      <Container maxWidth="xl">
+        <Toolbar disableGutters>
+          {/* Logo - Desktop */}
+          <Typography
+            variant="h6"
+            noWrap
+            component={Link}
+            to="/"
+            sx={{
+              mr: 2,
+              display: { xs: 'none', md: 'flex' },
+              fontWeight: 700,
+              color: 'primary.main',
+              textDecoration: 'none',
+            }}
+          >
+            CareerConnectPro
+          </Typography>
+
+          {/* Mobile Menu */}
+          <Box sx={{ flexGrow: 1, display: { xs: 'flex', md: 'none' } }}>
+            <IconButton
+              size="large"
+              aria-label="menu"
+              aria-controls="menu-appbar"
+              aria-haspopup="true"
+              onClick={handleOpenNavMenu}
+              color="inherit"
+            >
+              <MenuIcon />
+            </IconButton>
+            <Menu
+              id="menu-appbar"
+              anchorEl={anchorElNav}
+              anchorOrigin={{
+                vertical: 'bottom',
+                horizontal: 'left',
+              }}
+              keepMounted
+              transformOrigin={{
+                vertical: 'top',
+                horizontal: 'left',
+              }}
+              open={Boolean(anchorElNav)}
+              onClose={handleCloseNavMenu}
+              sx={{
+                display: { xs: 'block', md: 'none' },
+              }}
+            >
+              {navigationItems.map((item) => (
+                <MenuItem
+                  key={item.path}
+                  onClick={() => {
+                    handleCloseNavMenu();
+                    navigate(item.path);
+                  }}
+                >
+                  <Typography textAlign="center">{item.label}</Typography>
+                </MenuItem>
+              ))}
+              {!isAuthenticated && (
                 <>
-                  {userRole === "employer" && (
-                    <Link href="/post-job">
-                      <Button variant="outline" className="mr-2">
-                        Post a Job
-                      </Button>
-                    </Link>
-                  )}
-                  <Button variant="default" onClick={handleLogout}>
-                    Sign Out
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => openAuthModal("signIn")}
-                  >
-                    Sign In
-                  </Button>
-                  <Button
-                    variant="default"
-                    onClick={() => openAuthModal("signUp")}
-                  >
-                    Create Account
-                  </Button>
+                  <Divider />
+                  <MenuItem onClick={() => navigate('/login')}>
+                    <Typography textAlign="center">Login</Typography>
+                  </MenuItem>
+                  <MenuItem onClick={() => navigate('/register')}>
+                    <Typography textAlign="center">Register</Typography>
+                  </MenuItem>
                 </>
               )}
-            </div>
-            <div className="-mr-2 flex items-center sm:hidden">
+            </Menu>
+          </Box>
+
+          {/* Logo - Mobile */}
+          <Typography
+            variant="h5"
+            noWrap
+            component={Link}
+            to="/"
+            sx={{
+              mr: 2,
+              display: { xs: 'flex', md: 'none' },
+              flexGrow: 1,
+              fontWeight: 700,
+              color: 'primary.main',
+              textDecoration: 'none',
+            }}
+          >
+            CareerConnectPro
+          </Typography>
+
+          {/* Desktop Menu */}
+          <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' } }}>
+            {navigationItems.map((item) => (
               <Button
-                variant="ghost"
-                className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none"
-                onClick={toggleMobileMenu}
-                aria-expanded={showMobileMenu}
+                key={item.path}
+                onClick={() => {
+                  handleCloseNavMenu();
+                  navigate(item.path);
+                }}
+                sx={{ my: 2, color: 'text.primary', display: 'block', mx: 1 }}
               >
-                <span className="sr-only">Open main menu</span>
-                {showMobileMenu ? (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 6h16M4 12h16M4 18h16"
-                    />
-                  </svg>
-                )}
+                {item.label}
               </Button>
-            </div>
-          </div>
-        </div>
+            ))}
+          </Box>
 
-        {/* Mobile menu */}
-        {showMobileMenu && (
-          <div className="sm:hidden">
-            <div className="pt-2 pb-3 space-y-1">
-              <Link 
-                href="/" 
-                className={`${
-                  isActive("/")
-                    ? "bg-primary-50 border-primary text-primary-700"
-                    : "border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700"
-                } block pl-3 pr-4 py-2 border-l-4 text-base font-medium`}
-                onClick={() => setShowMobileMenu(false)}
-              >
-                Home
-              </Link>
-              <Link 
-                href="/jobs"
-                className={`${
-                  isActive("/jobs")
-                    ? "bg-primary-50 border-primary text-primary-700"
-                    : "border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700"
-                } block pl-3 pr-4 py-2 border-l-4 text-base font-medium`}
-                onClick={() => setShowMobileMenu(false)}
-              >
-                Jobs
-              </Link>
-              {(isLoggedIn && userRole === "jobseeker") && (
-                <Link 
-                  href="/resume-builder"
-                  className={`${
-                    isActive("/resume-builder")
-                      ? "bg-primary-50 border-primary text-primary-700"
-                      : "border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700"
-                  } block pl-3 pr-4 py-2 border-l-4 text-base font-medium`}
-                  onClick={() => setShowMobileMenu(false)}
+          {/* Auth Buttons or User Menu */}
+          <Box sx={{ flexGrow: 0, display: 'flex', alignItems: 'center', gap: 2 }}>
+            {isAuthenticated ? (
+              <>
+                <Typography variant="body1" sx={{ mr: 2, display: { xs: 'none', md: 'block' } }}>
+                  {user?.name}
+                </Typography>
+                <Tooltip title="Account settings">
+                  <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
+                    <Avatar sx={{ bgcolor: 'primary.main' }}>
+                      {user?.role === 'jobseeker' ? <WorkIcon /> : <BusinessIcon />}
+                    </Avatar>
+                  </IconButton>
+                </Tooltip>
+                <Menu
+                  sx={{ mt: '45px' }}
+                  id="menu-appbar"
+                  anchorEl={anchorElUser}
+                  anchorOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                  }}
+                  keepMounted
+                  transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                  }}
+                  open={Boolean(anchorElUser)}
+                  onClose={handleCloseUserMenu}
                 >
-                  Resume Builder
-                </Link>
-              )}
-              {isLoggedIn ? (
-                userRole === "employer" ? (
-                  <Link 
-                    href="/employer/dashboard"
-                    className={`${
-                      isActive("/employer/dashboard")
-                        ? "bg-primary-50 border-primary text-primary-700"
-                        : "border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700"
-                    } block pl-3 pr-4 py-2 border-l-4 text-base font-medium`}
-                    onClick={() => setShowMobileMenu(false)}
-                  >
-                    Dashboard
-                  </Link>
-                ) : (
-                  <Link 
-                    href="/jobseeker/dashboard"
-                    className={`${
-                      isActive("/jobseeker/dashboard")
-                        ? "bg-primary-50 border-primary text-primary-700"
-                        : "border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700"
-                    } block pl-3 pr-4 py-2 border-l-4 text-base font-medium`}
-                    onClick={() => setShowMobileMenu(false)}
-                  >
-                    Dashboard
-                  </Link>
-                )
-              ) : (
-                <Link 
-                  href="/for-employers"
-                  className={`${
-                    isActive("/for-employers")
-                      ? "bg-primary-50 border-primary text-primary-700"
-                      : "border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700"
-                  } block pl-3 pr-4 py-2 border-l-4 text-base font-medium`}
-                  onClick={() => setShowMobileMenu(false)}
+                  <MenuItem onClick={() => {
+                    handleCloseUserMenu();
+                    navigate(user?.role === 'jobseeker' ? '/jobseeker/dashboard' : '/employer/dashboard');
+                  }}>
+                    <Typography textAlign="center">Dashboard</Typography>
+                  </MenuItem>
+                  <MenuItem onClick={() => {
+                    handleCloseUserMenu();
+                    navigate('/profile');
+                  }}>
+                    <Typography textAlign="center">Profile</Typography>
+                  </MenuItem>
+                  <Divider />
+                  <MenuItem onClick={handleLogout}>
+                    <Typography textAlign="center">Logout</Typography>
+                  </MenuItem>
+                </Menu>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  onClick={() => navigate('/login')}
+                  startIcon={<AccountCircleIcon />}
+                  sx={{ display: { xs: 'none', md: 'flex' } }}
                 >
-                  For Employers
-                </Link>
-              )}
-            </div>
-            <div className="pt-4 pb-3 border-t border-gray-200">
-              <div className="space-y-1">
-                {isLoggedIn ? (
-                  <>
-                    {userRole === "employer" && (
-                      <Link 
-                        href="/post-job"
-                        className="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700"
-                        onClick={() => setShowMobileMenu(false)}
-                      >
-                        Post a Job
-                      </Link>
-                    )}
-                    <button
-                      className="block w-full text-left pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700"
-                      onClick={() => {
-                        handleLogout();
-                        setShowMobileMenu(false);
-                      }}
-                    >
-                      Sign Out
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      className="block w-full text-left pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700"
-                      onClick={() => {
-                        openAuthModal("signIn");
-                        setShowMobileMenu(false);
-                      }}
-                    >
-                      Sign In
-                    </button>
-                    <button
-                      className="block w-full text-left pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700"
-                      onClick={() => {
-                        openAuthModal("signUp");
-                        setShowMobileMenu(false);
-                      }}
-                    >
-                      Create Account
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </nav>
-
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        initialMode={authMode}
-      />
-    </>
+                  Login
+                </Button>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => navigate('/register')}
+                  sx={{ display: { xs: 'none', md: 'flex' } }}
+                >
+                  Create Account
+                </Button>
+              </>
+            )}
+          </Box>
+        </Toolbar>
+      </Container>
+    </AppBar>
   );
-}
+};

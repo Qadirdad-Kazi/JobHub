@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="600" viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Elements -->
+  <circle cx="400" cy="300" r="250" fill="#E3F2FD" opacity="0.5"/>
+  <circle cx="400" cy="300" r="200" fill="#BBDEFB" opacity="0.3"/>
+  
+  <!-- Laptop -->
+  <path d="M300 250 L500 250 L530 400 L270 400 Z" fill="#1976D2"/>
+  <rect x="320" y="270" width="160" height="100" fill="white"/>
+  <rect x="250" y="400" width="300" height="20" rx="10" fill="#1565C0"/>
+  
+  <!-- Document Icons -->
+  <g transform="translate(350, 290)">
+    <rect width="40" height="50" rx="5" fill="#2196F3"/>
+    <rect x="10" y="10" width="20" height="5" fill="white"/>
+    <rect x="10" y="20" width="20" height="5" fill="white"/>
+    <rect x="10" y="30" width="20" height="5" fill="white"/>
+  </g>
+  
+  <g transform="translate(410, 290)">
+    <rect width="40" height="50" rx="5" fill="#2196F3"/>
+    <rect x="10" y="10" width="20" height="5" fill="white"/>
+    <rect x="10" y="20" width="20" height="5" fill="white"/>
+    <rect x="10" y="30" width="20" height="5" fill="white"/>
+  </g>
+  
+  <!-- Decorative Elements -->
+  <circle cx="250" cy="200" r="20" fill="#64B5F6"/>
+  <circle cx="550" cy="200" r="20" fill="#64B5F6"/>
+  <circle cx="250" cy="400" r="20" fill="#64B5F6"/>
+  <circle cx="550" cy="400" r="20" fill="#64B5F6"/>
+  
+  <!-- Connection Lines -->
+  <path d="M270 200 Q400 150 530 200" stroke="#90CAF9" stroke-width="3"/>
+  <path d="M270 400 Q400 450 530 400" stroke="#90CAF9" stroke-width="3"/>
+  
+  <!-- Abstract Shapes -->
+  <path d="M200 150 L220 170 L200 190 Z" fill="#1976D2"/>
+  <path d="M600 150 L580 170 L600 190 Z" fill="#1976D2"/>
+  <path d="M200 410 L220 430 L200 450 Z" fill="#1976D2"/>
+  <path d="M600 410 L580 430 L600 450 Z" fill="#1976D2"/>
+</svg> 

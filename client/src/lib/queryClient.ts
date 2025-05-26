@@ -1,5 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+const API_BASE_URL = import.meta.env.VITE_API_URL;
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
@@ -12,9 +14,27 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
+  const headers: Record<string, string> = {};
+  
+  // Add Content-Type header if there's data
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+  
+  // Add Authorization header if there's a token
+  const token = localStorage.getItem("token");
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  // Ensure URL is properly formatted with base URL
+  const fullUrl = url.startsWith('http') 
+    ? url 
+    : `${API_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`.replace('/api/api/', '/api/');
+
+  const res = await fetch(fullUrl, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -29,7 +49,19 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey[0] as string, {
+    const headers: Record<string, string> = {};
+    
+    const token = localStorage.getItem("token");
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const url = (queryKey[0] as string).startsWith('http') 
+      ? queryKey[0] as string 
+      : `${API_BASE_URL}${(queryKey[0] as string).startsWith('/') ? queryKey[0] : `/${queryKey[0]}`}`.replace('/api/api/', '/api/');
+
+    const res = await fetch(url, {
+      headers,
       credentials: "include",
     });
 

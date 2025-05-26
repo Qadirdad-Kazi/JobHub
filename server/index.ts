@@ -1,10 +1,17 @@
-import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import { config } from './config';
+import { registerRoutes } from './routes';
+import './db'; // Initialize database connection
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
+
+// Middleware
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
+app.use(cors(config.corsOptions));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -36,28 +43,23 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
-  const server = await registerRoutes(app);
+// Error handling middleware
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Something broke!' });
+});
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
-
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
+// Start server
+async function startServer() {
+  try {
+    const server = await registerRoutes(app);
+    server.listen(config.port, () => {
+      console.log(`Server is running on port ${config.port}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
   }
+}
 
-  const port = process.env.PORT || 3000;
-  server.listen(port, () => {
-    log(`Server running at http://localhost:${port}`);
-  });
-})();
+startServer();

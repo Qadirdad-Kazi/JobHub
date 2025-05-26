@@ -1,77 +1,62 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { storage } from '../storage';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'jobhub-secret-key';
+import { config } from '../config';
+import { UserRole } from '@shared/schema';
+import User, { IUser } from '../models/User';
 
 export interface AuthRequest extends Request {
-  user?: {
-    id: number;
-    role: string;
-  };
+  user?: IUser;
 }
 
-export const generateToken = (userId: number, role: string): string => {
-  return jwt.sign({ id: userId, role }, JWT_SECRET, { expiresIn: '7d' });
-};
+export function generateToken(userId: string, role: string): string {
+  return jwt.sign({ userId, role }, config.jwtSecret, { expiresIn: '7d' });
+}
 
-export const verifyToken = (token: string): { id: number; role: string } | null => {
-  try {
-    return jwt.verify(token, JWT_SECRET) as { id: number; role: string };
-  } catch (error) {
-    return null;
-  }
-};
-
-export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ message: 'Authorization token required' });
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token provided' });
     }
-    
+
     const token = authHeader.split(' ')[1];
-    const decoded = verifyToken(token);
-    
-    if (!decoded) {
-      return res.status(401).json({ message: 'Invalid token' });
-    }
-    
-    const user = await storage.getUser(decoded.id);
-    
+    const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; role: string };
+
+    const user = await User.findById(decoded.userId);
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
     }
-    
-    req.user = { id: decoded.id, role: decoded.role };
+
+    req.user = user;
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
-    res.status(401).json({ message: 'Authentication failed' });
+    if (error instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+    next(error);
   }
-};
+}
 
-export const authorizeEmployer = (req: AuthRequest, res: Response, next: NextFunction) => {
+export function authorizeJobSeeker(req: AuthRequest, res: Response, next: NextFunction) {
   if (!req.user) {
     return res.status(401).json({ message: 'Not authenticated' });
   }
-  
-  if (req.user.role !== 'employer') {
-    return res.status(403).json({ message: 'Access denied. Employer role required' });
-  }
-  
-  next();
-};
 
-export const authorizeJobSeeker = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.user.role !== UserRole.JOBSEEKER) {
+    return res.status(403).json({ message: 'Access denied. Job seeker role required.' });
+  }
+
+  next();
+}
+
+export function authorizeEmployer(req: AuthRequest, res: Response, next: NextFunction) {
   if (!req.user) {
     return res.status(401).json({ message: 'Not authenticated' });
   }
-  
-  if (req.user.role !== 'jobseeker') {
-    return res.status(403).json({ message: 'Access denied. Job seeker role required' });
+
+  if (req.user.role !== UserRole.EMPLOYER) {
+    return res.status(403).json({ message: 'Access denied. Employer role required.' });
   }
-  
+
   next();
-};
+}
