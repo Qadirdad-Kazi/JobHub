@@ -16,7 +16,7 @@ import AnalyticsService from './services/analyticsService';
 
 // Zod schemas for validation
 const registerSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email('Invalid email address'),
   // Support both name and firstName/lastName patterns
   name: z.string().min(2, 'Name must be at least 2 characters').optional(),
   firstName: z.string().min(1, 'First name is required').optional(),
@@ -27,7 +27,17 @@ const registerSchema = z.object({
   role: z.enum([UserRole.JOBSEEKER, UserRole.EMPLOYER], {
     errorMap: () => ({ message: 'Please select a valid role' })
   }),
-}).refine(data => data.password === data.confirmPassword, {
+})
+// Ensure either name is provided or both firstName and lastName are provided
+.refine(data => {
+  if (data.name) return true;
+  return !!(data.firstName && data.lastName);
+}, {
+  message: "Either name or both firstName and lastName must be provided",
+  path: ["name"],
+})
+// Ensure passwords match
+.refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
 });
@@ -150,73 +160,63 @@ export function registerRoutes(app: Express): Server {
       // Log the incoming request body
       console.log('Register request body:', req.body);
       
-      // Extract and validate required fields
-      const { confirmPassword, firstName, lastName, username, email, password, role, name } = req.body;
+      // Validate the request body using Zod schema
+      let userData; // Declare userData variable at the outer scope
       
-      console.log('Validating registration fields:', { 
-        email: typeof email, 
-        username: typeof username, 
-        password: typeof password, 
-        role: typeof role,
-        roleValue: role,
-        firstName: typeof firstName,
-        lastName: typeof lastName
-      });
-      
-      // Check for missing required fields
-      if (!email || !username || !password || role === undefined) {
-        console.error('Missing required fields:', { 
-          email: !!email, 
-          username: !!username, 
-          password: !!password, 
-          role: !!role 
+      try {
+        const validationResult = registerSchema.safeParse(req.body);
+        
+        if (!validationResult.success) {
+          console.error('Validation errors:', validationResult.error.format());
+          return res.status(400).json({
+            message: 'Validation failed',
+            errors: validationResult.error.format()
+          });
+        }
+        
+        const validatedData = validationResult.data;
+        console.log('Validated data:', { ...validatedData, password: '******' });
+        
+        // Ensure name is properly formatted by combining firstName and lastName if needed
+        let formattedName = validatedData.name;
+        if (!formattedName && validatedData.firstName && validatedData.lastName) {
+          formattedName = `${validatedData.firstName} ${validatedData.lastName}`;
+        }
+        
+        if (!formattedName || formattedName.length < 2) {
+          console.error('Name validation failed:', { formattedName });
+          return res.status(400).json({ message: 'Name must be at least 2 characters long' });
+        }
+        
+        // Create user data object with validated fields
+        userData = {
+          email: validatedData.email,
+          username: validatedData.username,
+          password: validatedData.password,
+          role: validatedData.role,
+          name: formattedName,
+        };
+        
+        console.log('User data to save:', { 
+          ...userData, 
+          password: '******',
+          roleType: typeof userData.role,
+          roleValue: userData.role,
+          nameLength: formattedName.length
         });
-        return res.status(400).json({ message: 'Missing required fields' });
-      }
-      
-      // Validate role value
-      if (role !== UserRole.JOBSEEKER && role !== UserRole.EMPLOYER) {
-        console.error('Invalid role value:', role);
-        return res.status(400).json({ 
-          message: `Invalid role. Must be one of: ${UserRole.JOBSEEKER}, ${UserRole.EMPLOYER}`,
-          providedRole: role
+      } catch (validationError: any) {
+        console.error('Error during validation:', validationError);
+        return res.status(400).json({
+          message: 'Invalid request data',
+          error: validationError.message
         });
       }
       
-      // Ensure name is properly formatted by combining firstName and lastName
-      let formattedName = name;
-      if (!formattedName && firstName && lastName) {
-        formattedName = `${firstName} ${lastName}`;
-      } else if (!formattedName && firstName) {
-        formattedName = firstName;
-      } else if (!formattedName && lastName) {
-        formattedName = lastName;
-      } else if (!formattedName) {
-        formattedName = username; // Use username as fallback if no name components are provided
+      // Ensure userData is defined before continuing
+      if (!userData) {
+        console.error('User data is undefined after validation');
+        return res.status(500).json({ message: 'Server error during validation' });
       }
-      
-      // Validate name length
-      if (formattedName.length < 2) {
-        console.error('Name too short:', formattedName);
-        return res.status(400).json({ message: 'Name must be at least 2 characters long' });
-      }
-      
-      // Create user data object with validated fields
-      const userData = {
-        email,
-        username,
-        password,
-        role,
-        name: formattedName,
-      };
-      
-      console.log('User data to save:', { 
-        ...userData, 
-        password: '******',
-        roleType: typeof role,
-        roleValue: role,
-        nameLength: formattedName.length
-      });
       
       // Create new user using Mongoose model
       const user = new User(userData);
