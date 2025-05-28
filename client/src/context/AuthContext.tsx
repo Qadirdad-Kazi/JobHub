@@ -5,6 +5,7 @@ import { UserRole } from '../../../shared/schema';
 interface User {
   id: number;
   email: string;
+  username: string;
   firstName: string;
   lastName: string;
   role: UserRole;
@@ -16,6 +17,7 @@ interface AuthContextType {
   register: (userData: {
     email: string;
     password: string;
+    username: string;
     firstName: string;
     lastName: string;
     role: UserRole;
@@ -48,7 +50,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
-      // TODO: Replace with actual API call
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
@@ -56,25 +57,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
         body: JSON.stringify({ email, password }),
       });
-
       if (!response.ok) {
-        throw new Error('Login failed');
+        const error = await response.json();
+        throw new Error(error.message || 'Login failed');
       }
-
       const data = await response.json();
       const userData: User = data.user;
-
-      // Store user data
       localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('token', data.token);
       setUser(userData);
-
-      // Redirect based on user role
       if (userData.role === UserRole.JOBSEEKER) {
         navigate('/jobseeker/dashboard');
       } else {
         navigate('/employer/dashboard');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
       throw error;
     }
@@ -83,12 +80,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (userData: {
     email: string;
     password: string;
+    username: string;
     firstName: string;
     lastName: string;
     role: UserRole;
   }) => {
     try {
-      // TODO: Replace with actual API call
+      // Log the data being sent to the server
+      console.log('Sending registration data:', userData);
+      
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
@@ -96,25 +96,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
         body: JSON.stringify(userData),
       });
-
       if (!response.ok) {
-        throw new Error('Registration failed');
+        const error = await response.json();
+        throw new Error(error.message || 'Registration failed');
       }
-
       const data = await response.json();
       const newUser: User = data.user;
-
-      // Store user data
       localStorage.setItem('user', JSON.stringify(newUser));
+      localStorage.setItem('token', data.token);
       setUser(newUser);
-
-      // Redirect based on user role
       if (newUser.role === UserRole.JOBSEEKER) {
         navigate('/jobseeker/dashboard');
       } else {
         navigate('/employer/dashboard');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Registration error:', error);
       throw error;
     }
@@ -135,4 +131,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}; 
+};

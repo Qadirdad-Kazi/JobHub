@@ -7,11 +7,11 @@ import {
   TextField,
   Button,
   Link as MuiLink,
-  Grid,
   Alert,
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Grid } from '@mui/material';
 
 export const Login: React.FC = () => {
   const { login } = useAuth();
@@ -24,11 +24,10 @@ export const Login: React.FC = () => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-
     try {
       await login(email, password);
-    } catch (err) {
-      setError('Invalid email or password');
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password');
     } finally {
       setIsLoading(false);
     }
@@ -109,4 +108,4 @@ export const Login: React.FC = () => {
       </Box>
     </Container>
   );
-}; 
+};

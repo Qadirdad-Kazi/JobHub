@@ -28,6 +28,8 @@ const jobSchema = new mongoose.Schema({
     default: 'active'
   },
   expiresAt: { type: Date },
+  viewCount: { type: Number, default: 0 },
+  clickCount: { type: Number, default: 0 },
 }, {
   timestamps: true
 });

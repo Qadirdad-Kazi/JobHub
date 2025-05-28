@@ -7,7 +7,6 @@ import {
   TextField,
   Button,
   Link as MuiLink,
-  Grid,
   FormControl,
   InputLabel,
   Select,
@@ -15,6 +14,7 @@ import {
   Alert,
 } from '@mui/material';
 import { Link } from 'react-router-dom';
+import { Grid } from '@mui/material';
 import { UserRole } from '../../../shared/schema';
 import { useAuth } from '../context/AuthContext';
 
@@ -42,20 +42,15 @@ export const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    // Validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
     }
-
     if (!formData.role) {
       setError('Please select an account type');
       return;
     }
-
     setIsLoading(true);
-
     try {
       await register({
         email: formData.email,
@@ -64,8 +59,8 @@ export const Register: React.FC = () => {
         lastName: formData.lastName,
         role: formData.role,
       });
-    } catch (err) {
-      setError('Registration failed. Please try again.');
+    } catch (err: any) {
+      setError(err.message || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -162,7 +157,7 @@ export const Register: React.FC = () => {
                     name="role"
                     label="Account Type"
                     value={formData.role}
-                    onChange={handleChange}
+                    onChange={(e) => handleChange(e as React.ChangeEvent<HTMLInputElement>)}
                   >
                     <MenuItem value={UserRole.JOBSEEKER}>Job Seeker</MenuItem>
                     <MenuItem value={UserRole.EMPLOYER}>Employer</MenuItem>
@@ -196,4 +191,4 @@ export const Register: React.FC = () => {
       </Box>
     </Container>
   );
-}; 
+};

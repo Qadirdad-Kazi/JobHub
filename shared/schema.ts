@@ -1,4 +1,46 @@
 // MongoDB Schemas and Types
+
+// Analytics Types
+export interface TrendDataPoint {
+  date: string;
+  count: number;
+}
+
+export interface JobAnalytics {
+  jobId: string;
+  title: string;
+  totalApplications: number;
+  viewCount: number;
+  conversionRate: number;
+  statusBreakdown: {
+    pending: number;
+    reviewed: number;
+    interviewing: number;
+    rejected: number;
+    hired: number;
+  };
+  applicationTrend: TrendDataPoint[];
+  averageTimeToHire: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface EmployerAnalytics {
+  totalJobs: number;
+  activeJobs: number;
+  totalApplications: number;
+  totalViews: number;
+  conversionRate: number;
+  statusBreakdown: {
+    pending: number;
+    reviewed: number;
+    interviewing: number;
+    rejected: number;
+    hired: number;
+  };
+  applicationTrend: TrendDataPoint[];
+  jobPostingTrend: TrendDataPoint[];
+}
 export enum UserRole {
   JOBSEEKER = 'jobseeker',
   EMPLOYER = 'employer'
@@ -18,10 +60,13 @@ export const JobType = {
 export const ApplicationStatus = {
   PENDING: "pending",
   REVIEWED: "reviewed",
-  INTERVIEW: "interview",
+  INTERVIEWING: "interviewing",
   REJECTED: "rejected",
-  ACCEPTED: "accepted",
+  HIRED: "hired",
+  WITHDRAWN: "withdrawn",
 } as const;
+
+export type ApplicationStatus = typeof ApplicationStatus[keyof typeof ApplicationStatus];
 
 export type User = {
   _id: string;
@@ -80,7 +125,7 @@ export interface Job {
   location: string;
   description: string;
   requirements: string[];
-  type: 'full-time' | 'part-time' | 'contract' | 'internship';
+  type: 'full-time' | 'part-time' | 'contract' | 'internship' | 'remote';
   salary?: {
     min: number;
     max: number;
@@ -91,6 +136,8 @@ export interface Job {
   updatedAt?: Date;
   expiresAt?: Date;
   status: 'active' | 'closed' | 'draft';
+  viewCount?: number;
+  clickCount?: number;
 }
 
 export type Application = {
@@ -98,7 +145,7 @@ export type Application = {
   jobId: string | Job;
   userId: string | User;
   resumeId: string | Resume;
-  status: 'pending' | 'reviewed' | 'accepted' | 'rejected' | 'withdrawn';
+  status: ApplicationStatus;
   coverLetter?: string;
   notes?: string;
   withdrawalReason?: string;

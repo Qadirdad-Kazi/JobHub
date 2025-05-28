@@ -11,6 +11,7 @@ import {
   Chip,
   Card,
   CardContent,
+  Stack,
   Grid,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
@@ -25,10 +26,19 @@ export const JobSeekerDashboard: React.FC = () => {
     queryKey: ['/api/applications/me'],
   });
 
-  // Fetch recommended jobs
-  const { data: recommendedJobs, isLoading: isLoadingJobs } = useQuery<Job[]>({
-    queryKey: ['/api/jobs?limit=3'],
+  // Fetch personalized job recommendations
+  const { data: recommendedJobsResponse, isLoading: isLoadingJobs } = useQuery<{data: Job[]}>({ 
+    queryKey: ['recommendations'],
+    queryFn: async () => {
+      const response = await fetch('/api/recommendations?limit=3');
+      if (!response.ok) {
+        throw new Error('Failed to fetch recommendations');
+      }
+      return response.json();
+    }
   });
+  
+  const recommendedJobs: Job[] = recommendedJobsResponse?.data || [];
 
   return (
     <Container maxWidth="lg">
@@ -37,11 +47,11 @@ export const JobSeekerDashboard: React.FC = () => {
           My Dashboard
         </Typography>
 
-        <Grid container spacing={4}>
+        <Stack spacing={4} width="100%">
           {/* Statistics Cards */}
-          <Grid item xs={12}>
-            <Grid container spacing={3}>
-              <Grid item xs={12} sm={6} md={3}>
+          <Box width="100%">
+            <Stack direction="row" spacing={3} flexWrap="wrap">
+              <Box width={{ xs: '100%', sm: '50%', md: '25%' }} px={1}>
                 <Card>
                   <CardContent>
                     <Typography color="text.secondary" gutterBottom>
@@ -52,8 +62,8 @@ export const JobSeekerDashboard: React.FC = () => {
                     </Typography>
                   </CardContent>
                 </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              </Box>
+              <Box width={{ xs: '100%', sm: '50%', md: '25%' }} px={1}>
                 <Card>
                   <CardContent>
                     <Typography color="text.secondary" gutterBottom>
@@ -61,12 +71,12 @@ export const JobSeekerDashboard: React.FC = () => {
                     </Typography>
                     <Typography variant="h4">
                       {isLoadingApplications ? '...' : 
-                        applications?.filter(app => app.status === 'interview')?.length || 0}
+                        applications?.filter(app => app.status === 'interviewing')?.length || 0}
                     </Typography>
                   </CardContent>
                 </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              </Box>
+              <Box width={{ xs: '100%', sm: '50%', md: '25%' }} px={1}>
                 <Card>
                   <CardContent>
                     <Typography color="text.secondary" gutterBottom>
@@ -78,8 +88,8 @@ export const JobSeekerDashboard: React.FC = () => {
                     </Typography>
                   </CardContent>
                 </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              </Box>
+              <Box width={{ xs: '100%', sm: '50%', md: '25%' }} px={1}>
                 <Card>
                   <CardContent>
                     <Typography color="text.secondary" gutterBottom>
@@ -91,12 +101,12 @@ export const JobSeekerDashboard: React.FC = () => {
                     </Typography>
                   </CardContent>
                 </Card>
-              </Grid>
-            </Grid>
-          </Grid>
+              </Box>
+            </Stack>
+          </Box>
 
           {/* Recent Applications */}
-          <Grid item xs={12} md={8}>
+          <Box width={{ xs: '100%', md: '66.67%' }} px={1}>
             <Paper sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6">
@@ -116,11 +126,11 @@ export const JobSeekerDashboard: React.FC = () => {
                       sx={{ mb: 2, border: 1, borderColor: 'grey.200', borderRadius: 1 }}
                     >
                       <ListItemText
-                        primary={application.job?.title || 'Job Title Not Available'}
+                        primary={typeof application.jobId === 'object' ? application.jobId.title : 'Job Title Not Available'}
                         secondary={
                           <React.Fragment>
                             <Typography component="span" variant="body2" color="text.primary">
-                              {application.job?.company || 'Company Not Available'}
+                              {typeof application.jobId === 'object' ? application.jobId.company : 'Company Not Available'}
                             </Typography>
                             {` — Applied on ${new Date(application.appliedAt).toLocaleDateString()}`}
                           </React.Fragment>
@@ -129,8 +139,8 @@ export const JobSeekerDashboard: React.FC = () => {
                       <Chip 
                         label={application.status.charAt(0).toUpperCase() + application.status.slice(1)} 
                         color={application.status === 'pending' ? 'default' : 
-                               application.status === 'interview' ? 'primary' : 
-                               application.status === 'accepted' ? 'success' : 'error'} 
+                               application.status === 'interviewing' ? 'primary' : 
+                               application.status === 'hired' ? 'success' : 'error'} 
                       />
                     </ListItem>
                   ))}
@@ -139,10 +149,10 @@ export const JobSeekerDashboard: React.FC = () => {
                 <Typography>No applications yet</Typography>
               )}
             </Paper>
-          </Grid>
+          </Box>
 
           {/* Profile and Resume Section */}
-          <Grid item xs={12} md={4}>
+          <Box width={{ xs: '100%', md: '33.33%' }} px={1}>
             <Paper sx={{ p: 3, mb: 3 }}>
               <Typography variant="h6" gutterBottom>
                 Profile Completion
@@ -184,10 +194,10 @@ export const JobSeekerDashboard: React.FC = () => {
                 Update Resume
               </Button>
             </Paper>
-          </Grid>
+          </Box>
 
           {/* Recommended Jobs */}
-          <Grid item xs={12}>
+          <Box width="100%" px={1}>
             <Paper sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6">
@@ -200,9 +210,9 @@ export const JobSeekerDashboard: React.FC = () => {
               {isLoadingJobs ? (
                 <Typography>Loading jobs...</Typography>
               ) : recommendedJobs && recommendedJobs.length > 0 ? (
-                <Grid container spacing={3}>
-                  {recommendedJobs.map((job) => (
-                    <Grid item xs={12} md={4} key={job._id}>
+                <Stack direction="row" spacing={3} flexWrap="wrap">
+                  {recommendedJobs.map((job: Job) => (
+                    <Box width={{ xs: '100%', md: '33.33%' }} px={1} key={job._id}>
                       <Card>
                         <CardContent>
                           <Typography variant="h6" gutterBottom>
@@ -225,15 +235,15 @@ export const JobSeekerDashboard: React.FC = () => {
                           </Button>
                         </CardContent>
                       </Card>
-                    </Grid>
+                    </Box>
                   ))}
-                </Grid>
+                </Stack>
               ) : (
                 <Typography>No recommended jobs available</Typography>
               )}
             </Paper>
-          </Grid>
-        </Grid>
+          </Box>
+        </Stack>
       </Box>
     </Container>
   );

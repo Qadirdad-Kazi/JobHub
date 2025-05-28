@@ -1,20 +1,26 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
+import mongoose from "mongoose";
+import User, { IUser } from "./models/User";
 import { createServer, type Server } from "http";
 import bcrypt from "bcrypt";
 import { z } from "zod";
 import { UserRole } from "@shared/schema";
-import { authenticate, authorizeEmployer, authorizeJobSeeker, generateToken, AuthRequest } from "./middleware/auth";
+import { authenticate, authorizeEmployer, authorizeJobSeeker, generateToken, AuthRequest } from './middleware/auth';
 import { db } from './db';
-import User from './models/User';
 import Resume from './models/Resume';
 import Job from './models/Job';
 import Application from './models/Application';
 import { emailService } from './services/emailService';
+import RecommendationService from './services/recommendationService';
+import AnalyticsService from './services/analyticsService';
 
 // Zod schemas for validation
 const registerSchema = z.object({
   email: z.string().email(),
-  name: z.string().min(2, 'Name must be at least 2 characters'),
+  // Support both name and firstName/lastName patterns
+  name: z.string().min(2, 'Name must be at least 2 characters').optional(),
+  firstName: z.string().min(1, 'First name is required').optional(),
+  lastName: z.string().min(1, 'Last name is required').optional(),
   username: z.string().min(3, 'Username must be at least 3 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
@@ -103,7 +109,7 @@ const createApplicationSchema = z.object({
 });
 
 const updateApplicationSchema = z.object({
-  status: z.enum(['pending', 'reviewed', 'accepted', 'rejected']),
+  status: z.enum(['pending', 'reviewed', 'interviewing', 'rejected', 'hired', 'withdrawn']),
   notes: z.string().optional(),
 });
 
@@ -112,14 +118,22 @@ const withdrawApplicationSchema = z.object({
   reason: z.string().optional()
 });
 
-export async function registerRoutes(app: Express): Promise<Server> {
+// Extend the AuthRequest interface to include validatedBody
+interface ValidatedRequest<T> extends AuthRequest {
+  validatedBody: T;
+}
+
+export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
   // Helper function to handle zod validation
   const validateBody = <T>(schema: z.ZodType<T>) => {
-    return (req: any, res: any, next: any) => {
+    return (req: Request, res: Response, next: NextFunction) => {
       try {
-        req.validatedBody = schema.parse(req.body);
+        // Parse and validate the request body
+        const validatedData = schema.parse(req.body);
+        // Safely assign the validated data to the request object
+        (req as ValidatedRequest<T>).validatedBody = validatedData;
         next();
       } catch (error) {
         if (error instanceof z.ZodError) {
@@ -131,9 +145,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Auth Routes
-  app.post('/api/auth/register', validateBody(registerSchema), async (req, res) => {
+  app.post('/api/auth/register', validateBody(registerSchema), async (req: AuthRequest, res) => {
+    // Type assertion to access validatedBody
+    const validatedReq = req as ValidatedRequest<z.infer<typeof registerSchema>>;
     try {
-      const { confirmPassword, ...userData } = req.validatedBody;
+      const { confirmPassword, firstName, lastName, ...otherUserData } = validatedReq.validatedBody;
+      
+      // Combine firstName and lastName into name field for the backend
+      const userData = {
+        ...otherUserData,
+        name: firstName && lastName ? `${firstName} ${lastName}` : (firstName || lastName || ''),
+      };
       
       // Create new user using Mongoose model
       const user = new User(userData);
@@ -142,18 +164,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await user.save();
       
       // Generate token
-        const token = generateToken(user._id.toString(), user.role);
+        // Add type assertion to handle the unknown type
+        const token = generateToken((user._id as any).toString(), user.role);
       
-      // Return user without password
+      // Return user without password and transform to match frontend expectations
         const userObject = user.toObject();
-        const { password, ...userWithoutPassword } = userObject;
+        const { password, _id, name, ...otherUserFields } = userObject;
+        
+        // Split name into firstName and lastName for frontend
+        const nameParts = name.split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        
+        // Create user object that matches frontend expectations
+        const transformedUser = {
+          ...otherUserFields,
+          id: (_id as any).toString(),
+          firstName,
+          lastName
+        };
         
       res.status(201).json({
         message: 'User registered successfully',
-        user: userWithoutPassword,
+        user: transformedUser,
         token
       });
-      } catch (error) {
+      } catch (error: any) {
         if (error.code === 11000) {
           // Duplicate key error
           const field = Object.keys(error.keyPattern)[0];
@@ -163,15 +199,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         throw error;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Registration error:', error);
       res.status(500).json({ message: 'Server error during registration' });
     }
   });
 
-  app.post('/api/auth/login', validateBody(loginSchema), async (req, res) => {
+  app.post('/api/auth/login', validateBody(loginSchema), async (req: Request, res) => {
     try {
-      const { email, password } = req.validatedBody;
+      // Safely access the validated body
+      const validatedBody = (req as ValidatedRequest<z.infer<typeof loginSchema>>).validatedBody;
+      const { email, password } = validatedBody;
       
       // Find user
       const user = await User.findOne({ email });
@@ -186,15 +224,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Generate token
-      const token = generateToken(user._id.toString(), user.role);
+      // Add type assertion to handle the unknown type
+      const token = generateToken((user._id as any).toString(), user.role);
       
-      // Return user without password
+      // Return user without password and transform to match frontend expectations
       const userObject = user.toObject();
-      const { password: _, ...userWithoutPassword } = userObject;
+      const { password: _, _id, name, ...otherUserFields } = userObject;
+      
+      // Split name into firstName and lastName for frontend
+      const nameParts = name.split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
+      // Create user object that matches frontend expectations
+      const transformedUser = {
+        ...otherUserFields,
+        id: (_id as any).toString(),
+        firstName,
+        lastName
+      };
       
       res.json({
-        message: 'Login successful',
-        user: userWithoutPassword,
+        user: transformedUser,
         token
       });
     } catch (error) {
@@ -209,7 +260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Not authenticated' });
       }
       
-      const user = await db.collection('users').findOne({ _id: req.user._id });
+      const user = await db.collection('users').findOne({ id: req.user.id });
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
@@ -223,16 +274,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Resume Routes
-  app.post('/api/resumes', authenticate, authorizeJobSeeker, validateBody(resumeSchema), async (req: AuthRequest, res) => {
+  app.post('/api/resumes', authenticate, authorizeJobSeeker, validateBody(resumeSchema as any), async (req: AuthRequest, res) => {
+    // Type assertion to access validatedBody
+    const validatedReq = req as ValidatedRequest<z.infer<typeof resumeSchema>>;
     try {
       if (!req.user) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
       
+      // Use type assertion to handle date conversions
       const resumeData = {
-        ...req.validatedBody,
+        ...validatedReq.validatedBody,
         userId: req.user._id,
-      };
+      } as any; // Type assertion to bypass type checking for date fields
       
       const resume = new Resume(resumeData);
       await resume.save();
@@ -271,7 +325,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if user owns the resume or is an employer viewing an application
-      if (!resume.userId.equals(req.user._id) && req.user.role !== UserRole.EMPLOYER) {
+      // Use type assertion to handle the unknown type
+      const userId = req.user._id as string;
+      const resumeUserId = resume.userId.toString();
+      
+      if (userId !== resumeUserId && req.user.role !== UserRole.EMPLOYER) {
         return res.status(403).json({ message: 'Access denied' });
       }
       
@@ -284,13 +342,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Job Routes
   app.post('/api/jobs', authenticate, authorizeEmployer, validateBody(createJobSchema), async (req: AuthRequest, res) => {
+    // Type assertion to access validatedBody
+    const validatedReq = req as ValidatedRequest<z.infer<typeof createJobSchema>>;
     try {
       if (!req.user) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
       
       const jobData = {
-        ...req.validatedBody,
+        ...validatedReq.validatedBody,
         postedBy: req.user._id
       };
 
@@ -304,9 +364,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/jobs', validateBody(searchJobsSchema), async (req, res) => {
+  app.get('/api/jobs', validateBody(searchJobsSchema), async (req: Request, res) => {
     try {
-      const { query, location, type, page = 1, limit = 10 } = req.query;
+      // Safely access the validated body
+      const validatedBody = (req as ValidatedRequest<z.infer<typeof searchJobsSchema>>).validatedBody;
+      // Use optional chaining and provide defaults to handle undefined values
+      const query = validatedBody?.query;
+      const location = validatedBody?.location;
+      const type = validatedBody?.type;
+      const page = validatedBody?.page ?? 1;
+      const limit = validatedBody?.limit ?? 10;
       const skip = (page - 1) * limit;
 
       // Build search criteria
@@ -344,7 +411,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/jobs/:id', async (req, res) => {
+  app.get('/api/jobs/:id', async (req: Request, res) => {
     try {
       const job = await Job.findById(req.params.id)
         .populate('postedBy', 'name company');
@@ -361,6 +428,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.put('/api/jobs/:id', authenticate, authorizeEmployer, validateBody(updateJobSchema), async (req: AuthRequest, res) => {
+    // Type assertion to access validatedBody
+    const validatedReq = req as ValidatedRequest<z.infer<typeof updateJobSchema>>;
     try {
       if (!req.user) {
         return res.status(401).json({ message: 'Not authenticated' });
@@ -375,7 +444,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Job not found or unauthorized' });
       }
 
-      Object.assign(job, req.validatedBody);
+      Object.assign(job, validatedReq.validatedBody);
       await job.save();
 
       res.json(job);
@@ -414,7 +483,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Not authenticated' });
       }
       
-      const { jobId, resumeId, coverLetter } = req.validatedBody;
+      // Safely access the validated body
+      const validatedBody = (req as ValidatedRequest<z.infer<typeof createApplicationSchema>>).validatedBody;
+      const { jobId, resumeId, coverLetter } = validatedBody;
 
       // Verify job exists and is active
       const job = await Job.findOne({ _id: jobId, status: 'active' })
@@ -464,8 +535,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ]);
 
       res.status(201).json(application);
-    } catch (error) {
-      if (error.code === 11000) {
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
         return res.status(400).json({ message: 'You have already applied to this job' });
       }
       console.error('Create application error:', error);
@@ -527,12 +598,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Update application status (employer only)
   app.put('/api/applications/:id', authenticate, authorizeEmployer, validateBody(updateApplicationSchema), async (req: AuthRequest, res) => {
+    // Type assertion to access validatedBody
+    const validatedReq = req as ValidatedRequest<z.infer<typeof updateApplicationSchema>>;
     try {
       if (!req.user) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
       
-      const { status, notes } = req.validatedBody;
+      const { status, notes } = validatedReq.validatedBody;
 
       // Find application and verify job belongs to employer
       const application = await Application.findById(req.params.id)
@@ -609,7 +682,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Application not found or already withdrawn' });
       }
 
-      const { reason } = req.validatedBody;
+      // Safely access the validated body
+      const validatedBody = (req as ValidatedRequest<z.infer<typeof withdrawApplicationSchema>>).validatedBody;
+      const { reason } = validatedBody;
 
       // Update application status
       application.status = 'withdrawn';
@@ -641,5 +716,117 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  return httpServer;
+  // Job Recommendations API
+  app.get('/api/recommendations', authenticate, authorizeJobSeeker, async (req: AuthRequest, res) => {
+    try {
+      // Ensure user exists before proceeding
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+      }
+      
+      // Safely access the user ID with proper type handling
+      // Using the IUser interface for proper typing
+      if (!req.user || !req.user._id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid user data'
+        });
+      }
+      const userId = req.user._id.toString();
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 5;
+      
+      const recommendations = await RecommendationService.getRecommendedJobs(userId, limit);
+      
+      res.json({
+        success: true,
+        data: recommendations
+      });
+    } catch (error) {
+      console.error('Error getting job recommendations:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get job recommendations'
+      });
+    }
+  });
+
+  // Job Analytics API
+  app.get('/api/analytics/jobs/:jobId', authenticate, authorizeEmployer, async (req: AuthRequest, res) => {
+    try {
+      const { jobId } = req.params;
+      
+      // Verify the job belongs to this employer
+      const job = await Job.findOne({ _id: jobId, postedBy: req.user!._id });
+      
+      if (!job) {
+        return res.status(404).json({
+          success: false,
+          message: 'Job not found or you do not have permission to view analytics'
+        });
+      }
+      
+      const analytics = await AnalyticsService.getJobAnalytics(jobId);
+      
+      res.json({
+        success: true,
+        data: analytics
+      });
+    } catch (error) {
+      console.error('Error getting job analytics:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get job analytics'
+      });
+    }
+  });
+
+  // Employer Dashboard Analytics API
+  app.get('/api/analytics/employer', authenticate, authorizeEmployer, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      // Use type assertion to inform TypeScript that _id exists and is a mongoose ObjectId
+      const employerId = req.user._id?.toString() || '';
+      
+      const analytics = await AnalyticsService.getEmployerAnalytics(employerId);
+      
+      res.json({
+        success: true,
+        data: analytics
+      });
+    } catch (error) {
+      console.error('Error getting employer analytics:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get employer analytics'
+      });
+    }
+  });
+
+  // Track job view
+  app.post('/api/jobs/:jobId/view', async (req, res) => {
+    try {
+      const { jobId } = req.params;
+      
+      // Increment view count
+      await Job.findByIdAndUpdate(jobId, { $inc: { viewCount: 1 } });
+      
+      res.json({
+        success: true
+      });
+    } catch (error) {
+      console.error('Error tracking job view:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to track job view'
+      });
+    }
+  });
+
+  return createServer(app);
 }
