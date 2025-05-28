@@ -1,10 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { config } from './config';
-import { registerRoutes } from './routes';
-import './db'; // Initialize database connection
-import { setupVite, serveStatic, log } from "./vite";
+import { config } from './config.js';
+import { registerRoutes } from './routes.js';
+import './db.js'; // Initialize database connection
+import { setupVite, serveStatic, log } from "./vite.js";
 
 const app = express();
 

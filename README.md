@@ -64,12 +64,34 @@ npm install
 
 3. Set up environment variables
 ```bash
-# In client directory
-cp .env.example .env
-
-# In server directory
+# Copy the example environment file
 cp .env.example .env
 ```
+
+Edit the `.env` file and set the following variables:
+
+```
+# Server Configuration
+PORT=3001
+NODE_ENV=development
+
+# Database Configuration
+# Replace with your actual MongoDB connection string
+MONGODB_URI=mongodb://localhost:27017/jobhub
+
+# Authentication
+# Replace with a strong, unique secret key
+JWT_SECRET=your-secret-key-here
+BCRYPT_SALT_ROUNDS=10
+
+# Client URL
+CLIENT_URL=http://localhost:5173
+```
+
+**Important Security Notes:**
+- Never commit your `.env` file to version control
+- Use strong, unique values for sensitive variables like `JWT_SECRET`
+- In production, use more complex passwords and connection strings
 
 4. Start the development servers
 ```bash

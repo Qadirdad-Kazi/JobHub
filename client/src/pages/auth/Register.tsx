@@ -87,17 +87,31 @@ export const Register: React.FC = () => {
 
   // Direct submit function that bypasses form validation
   const directSubmit = () => {
-    const formData = {
-      firstName: watch('firstName') || 'Test',
-      lastName: watch('lastName') || 'User',
-      username: watch('username') || 'testuser',
-      email: watch('email') || 'test@example.com',
-      password: watch('password') || 'password123',
-      confirmPassword: watch('confirmPassword') || 'password123',
-      role: watch('role') || UserRole.JOBSEEKER,
+    // Generate unique username and email to avoid duplicate key errors
+    const randomSuffix = Math.floor(Math.random() * 10000);
+    const username = `testuser${randomSuffix}`;
+    const email = `test${randomSuffix}@example.com`;
+    
+    // First and last name for the test user
+    const firstName = 'Test';
+    const lastName = 'User';
+    
+    // Create a test user with all required fields in the correct format
+    // Including the name field which is required by the server model
+    const testUser = {
+      firstName: firstName,
+      lastName: lastName,
+      username: username, // Must be unique
+      email: email, // Must be unique
+      password: 'Password123', // At least 6 characters
+      confirmPassword: 'Password123',
+      role: UserRole.JOBSEEKER, // Using the enum value 'jobseeker'
+      // Explicitly include the name field to match server schema requirements
+      name: `${firstName} ${lastName}`
     };
-    console.log('Direct submit with data:', formData);
-    registerMutation.mutate(formData);
+    
+    console.log('Direct submit with test data:', testUser);
+    registerMutation.mutate(testUser);
   };
 
   const selectedRole = watch('role');
@@ -263,12 +277,12 @@ export const Register: React.FC = () => {
               </Box>
               <Box width="100%">
                 <Button
-                  type="button" /* Changed from submit to button */
+                  type="button"
                   variant="contained"
                   color="primary"
                   fullWidth
                   size="large"
-                  onClick={directSubmit} /* Use direct submit function */
+                  onClick={directSubmit}
                   disabled={false}
                 >
                   {registerMutation.isPending ? (
@@ -277,6 +291,20 @@ export const Register: React.FC = () => {
                     'Create Account'
                   )}
                 </Button>
+                
+                {/* Login link */}
+                <Box mt={2}>
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    color="secondary"
+                    fullWidth
+                    size="large"
+                    onClick={() => navigate('/login')}
+                  >
+                    Already have an account? Sign In
+                  </Button>
+                </Box>
               </Box>
             </Stack>
           </form>

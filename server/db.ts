@@ -1,6 +1,13 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/careerconnectpro';
+import { config } from './config';
+
+// Use the MongoDB URI from the config file
+const MONGODB_URI = config.mongoUri;
+
+// Log a masked version of the connection string for debugging
+console.log(`Using MongoDB connection: ${MONGODB_URI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')}`);
+
 
 // Connect to MongoDB using Mongoose
 async function connect() {

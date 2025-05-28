@@ -145,30 +145,110 @@ export function registerRoutes(app: Express): Server {
   };
 
   // Auth Routes
-  app.post('/api/auth/register', validateBody(registerSchema), async (req: AuthRequest, res) => {
-    // Type assertion to access validatedBody
-    const validatedReq = req as ValidatedRequest<z.infer<typeof registerSchema>>;
+  app.post('/api/auth/register', async (req: Request, res) => {
     try {
-      const { confirmPassword, firstName, lastName, ...otherUserData } = validatedReq.validatedBody;
+      // Log the incoming request body
+      console.log('Register request body:', req.body);
       
-      // Combine firstName and lastName into name field for the backend
+      // Extract and validate required fields
+      const { confirmPassword, firstName, lastName, username, email, password, role, name } = req.body;
+      
+      console.log('Validating registration fields:', { 
+        email: typeof email, 
+        username: typeof username, 
+        password: typeof password, 
+        role: typeof role,
+        roleValue: role,
+        firstName: typeof firstName,
+        lastName: typeof lastName
+      });
+      
+      // Check for missing required fields
+      if (!email || !username || !password || role === undefined) {
+        console.error('Missing required fields:', { 
+          email: !!email, 
+          username: !!username, 
+          password: !!password, 
+          role: !!role 
+        });
+        return res.status(400).json({ message: 'Missing required fields' });
+      }
+      
+      // Validate role value
+      if (role !== UserRole.JOBSEEKER && role !== UserRole.EMPLOYER) {
+        console.error('Invalid role value:', role);
+        return res.status(400).json({ 
+          message: `Invalid role. Must be one of: ${UserRole.JOBSEEKER}, ${UserRole.EMPLOYER}`,
+          providedRole: role
+        });
+      }
+      
+      // Ensure name is properly formatted by combining firstName and lastName
+      let formattedName = name;
+      if (!formattedName && firstName && lastName) {
+        formattedName = `${firstName} ${lastName}`;
+      } else if (!formattedName && firstName) {
+        formattedName = firstName;
+      } else if (!formattedName && lastName) {
+        formattedName = lastName;
+      } else if (!formattedName) {
+        formattedName = username; // Use username as fallback if no name components are provided
+      }
+      
+      // Validate name length
+      if (formattedName.length < 2) {
+        console.error('Name too short:', formattedName);
+        return res.status(400).json({ message: 'Name must be at least 2 characters long' });
+      }
+      
+      // Create user data object with validated fields
       const userData = {
-        ...otherUserData,
-        name: firstName && lastName ? `${firstName} ${lastName}` : (firstName || lastName || ''),
+        email,
+        username,
+        password,
+        role,
+        name: formattedName,
       };
+      
+      console.log('User data to save:', { 
+        ...userData, 
+        password: '******',
+        roleType: typeof role,
+        roleValue: role,
+        nameLength: formattedName.length
+      });
       
       // Create new user using Mongoose model
       const user = new User(userData);
       
       try {
+        console.log('Attempting to save user:', { ...userData, password: '******' });
+        
+        // Validate the user model before saving
+        const validationError = user.validateSync();
+        if (validationError) {
+          console.error('Validation error before save:', validationError);
+          return res.status(400).json({
+            message: 'Validation failed',
+            errors: Object.keys(validationError.errors || {}).reduce((acc: any, key) => {
+              acc[key] = validationError.errors[key].message;
+              return acc;
+            }, {})
+          });
+        }
+        
+        // Save the user to the database
         await user.save();
+        console.log('User saved successfully with ID:', user._id);
       
-      // Generate token
+        // Generate token
         // Add type assertion to handle the unknown type
         const token = generateToken((user._id as any).toString(), user.role);
+        console.log('Token generated successfully');
       
-      // Return user without password and transform to match frontend expectations
+        // Return user without password and transform to match frontend expectations
         const userObject = user.toObject();
+        console.log('User object created:', { id: userObject._id, email: userObject.email });
         const { password, _id, name, ...otherUserFields } = userObject;
         
         // Split name into firstName and lastName for frontend
@@ -184,20 +264,51 @@ export function registerRoutes(app: Express): Server {
           lastName
         };
         
-      res.status(201).json({
-        message: 'User registered successfully',
-        user: transformedUser,
-        token
-      });
+        console.log('Transformed user ready for response');
+        
+        res.status(201).json({
+          message: 'User registered successfully',
+          user: transformedUser,
+          token
+        });
       } catch (error: any) {
+        console.error('Error saving user:', error);
+        console.error('Error details:', { 
+          message: error.message, 
+          code: error.code, 
+          name: error.name,
+          stack: error.stack
+        });
+        
         if (error.code === 11000) {
           // Duplicate key error
-          const field = Object.keys(error.keyPattern)[0];
+          const field = Object.keys(error.keyPattern || {})[0] || 'unknown field';
+          console.error(`Duplicate key error for field: ${field}`);
           return res.status(400).json({
-            message: `User with this ${field} already exists`
+            message: `User with this ${field} already exists`,
+            field: field
           });
         }
-        throw error;
+        
+        if (error.name === 'ValidationError') {
+          // Mongoose validation error
+          const validationErrors = Object.keys(error.errors || {}).reduce((acc: any, key) => {
+            acc[key] = error.errors[key].message;
+            return acc;
+          }, {});
+          
+          console.error('Validation errors:', validationErrors);
+          return res.status(400).json({
+            message: 'Validation failed',
+            errors: validationErrors
+          });
+        }
+        
+        // Return detailed error information
+        return res.status(500).json({
+          message: error.message || 'Error creating user',
+          error: error.toString()
+        });
       }
     } catch (error: any) {
       console.error('Registration error:', error);

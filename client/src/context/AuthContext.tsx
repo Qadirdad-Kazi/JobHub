@@ -20,6 +20,7 @@ interface AuthContextType {
     username: string;
     firstName: string;
     lastName: string;
+    name?: string;
     role: UserRole;
   }) => Promise<void>;
   logout: () => void;
@@ -84,23 +85,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     firstName: string;
     lastName: string;
     role: UserRole;
+    name?: string; // Add name as an optional field
   }) => {
     try {
+      // Ensure the name field is included for the server
+      const dataToSend = {
+        ...userData,
+        // Make sure name is explicitly set using firstName and lastName
+        name: userData.name || `${userData.firstName} ${userData.lastName}`
+      };
+      
+      // Validate that the name meets the minimum length requirement (2 characters)
+      if (!dataToSend.name || dataToSend.name.trim().length < 2) {
+        throw new Error('Name must be at least 2 characters long');
+      }
+      
       // Log the data being sent to the server
-      console.log('Sending registration data:', userData);
+      console.log('Sending registration data:', dataToSend);
       
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(userData),
+        body: JSON.stringify(dataToSend),
       });
+      
+      // First check if the response is ok
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Registration failed');
+        // Get the response text first to avoid JSON parsing errors
+        const responseText = await response.text();
+        console.error('Server error response text:', responseText);
+        
+        try {
+          // Try to parse the response as JSON if possible
+          if (responseText) {
+            const errorData = JSON.parse(responseText);
+            console.error('Server error response parsed:', errorData);
+            throw new Error(errorData.message || 'Registration failed');
+          }
+        } catch (parseError) {
+          // If we can't parse the error as JSON, use the text or status
+          console.error('Error parsing response as JSON:', parseError);
+        }
+        
+        // If we couldn't parse JSON or there was no text, use status
+        throw new Error(`Registration failed: ${response.status} ${response.statusText}`);
       }
-      const data = await response.json();
+      
+      // Parse successful response
+      const responseText = await response.text();
+      let data;
+      
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Error parsing success response:', parseError, 'Response text:', responseText);
+        throw new Error('Invalid response from server');
+      }
+      
       const newUser: User = data.user;
       localStorage.setItem('user', JSON.stringify(newUser));
       localStorage.setItem('token', data.token);
@@ -122,7 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     navigate('/login');
   };
 
-  const value = {
+  const value: AuthContextType = {
     user,
     login,
     register,
@@ -130,5 +173,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated: !!user,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };

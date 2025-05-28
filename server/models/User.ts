@@ -70,11 +70,21 @@ userSchema.pre('save', async function(next) {
   }
 
   try {
+    console.log('Hashing password for user:', this.username);
+    
+    // Validate password
+    if (!this.password || typeof this.password !== 'string' || this.password.length < 6) {
+      console.error('Invalid password format or length');
+      throw new Error('Password must be at least 6 characters long');
+    }
+    
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    console.log('Password hashed successfully');
     next();
-  } catch (error) {
-    next(error as Error);
+  } catch (error: any) {
+    console.error('Error hashing password:', error.message);
+    next(error);
   }
 });
 

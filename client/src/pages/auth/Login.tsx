@@ -13,6 +13,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
+import { useAuth } from '../../context/AuthContext';
+import { UserRole } from '../../../../shared/schema';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
@@ -25,6 +27,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
@@ -33,31 +36,37 @@ export const Login: React.FC = () => {
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginFormData) => {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-      
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error);
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+          // Create a clone of the response to read the body
+          const responseClone = response.clone();
+          
+          try {
+            const errorData = await responseClone.json();
+            console.error('Server error response:', errorData);
+            throw new Error(errorData.message || 'Login failed');
+          } catch (parseError) {
+            // If we can't parse the error as JSON, use the status text
+            console.error('Error parsing response:', parseError);
+            throw new Error(`Login failed: ${response.statusText}`);
+          }
+        }
+        
+        return response.json();
+      } catch (error: any) {
+        console.error('Login error:', error);
+        throw error;
       }
-      
-      return response.json();
     },
-    onSuccess: (data) => {
-      // Store the token
-      localStorage.setItem('token', data.token);
-      // Redirect based on role
-      if (data.user.role === 'jobseeker') {
-        navigate('/jobseeker/dashboard');
-      } else {
-        navigate('/employer/dashboard');
-      }
-    },
+    onSuccess: (data) => handleLoginSuccess(data),
     onError: (error) => {
       setServerError(error.message);
     },
@@ -66,6 +75,20 @@ export const Login: React.FC = () => {
   const onSubmit = (data: LoginFormData) => {
     setServerError(null);
     loginMutation.mutate(data);
+  };
+
+  // Handle successful login
+  const handleLoginSuccess = (data: any) => {
+    // Store user data and token
+    localStorage.setItem('user', JSON.stringify(data.user));
+    localStorage.setItem('token', data.token);
+    
+    // Redirect based on user role
+    if (data.user.role === UserRole.JOBSEEKER) {
+      navigate('/jobseeker/dashboard');
+    } else {
+      navigate('/employer/dashboard');
+    }
   };
 
   return (
@@ -115,6 +138,20 @@ export const Login: React.FC = () => {
                 'Sign In'
               )}
             </Button>
+
+            {/* Register link */}
+            <Box mt={2}>
+              <Button
+                type="button"
+                variant="outlined"
+                color="secondary"
+                fullWidth
+                size="large"
+                onClick={() => navigate('/register')}
+              >
+                Don't have an account? Sign Up
+              </Button>
+            </Box>
           </form>
 
           <Box sx={{ mt: 3, textAlign: 'center' }}>
