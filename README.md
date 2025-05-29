@@ -36,6 +36,56 @@ JobHub is a comprehensive job board platform built with React, TypeScript, and m
 - JWT authentication
 - RESTful architecture
 
+## Environment-Based Configuration
+
+JobHub uses environment variables for configuration, making it easy to deploy in different environments without code changes.
+
+### Client Environment Variables
+
+Create a `.env` file in the `client` directory with the following variables:
+
+```
+# API Configuration
+VITE_API_URL=/api
+
+# Application Information
+VITE_APP_NAME=JobHub
+VITE_APP_VERSION=1.0.0
+VITE_APP_ENVIRONMENT=development
+
+# Feature Flags
+VITE_ENABLE_ANALYTICS=false
+VITE_ENABLE_NOTIFICATIONS=false
+```
+
+### Server Environment Variables
+
+Create a `.env` file in the `server` directory with the following variables:
+
+```
+# Server Configuration
+NODE_ENV=development
+PORT=3001
+
+# Database
+MONGODB_URI=mongodb+srv://username:password@jobhub.xg7aod2.mongodb.net/?retryWrites=true&w=majority&appName=JobHub
+
+# Authentication
+JWT_SECRET=your_jwt_secret_key_here
+BCRYPT_SALT_ROUNDS=10
+
+# Client URL for CORS
+CLIENT_URL=http://localhost:5175
+
+# Email Configuration
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_SECURE=false
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASSWORD=your_app_password
+EMAIL_FROM=noreply@jobhub.com
+```
+
 ## Getting Started
 
 ### Prerequisites

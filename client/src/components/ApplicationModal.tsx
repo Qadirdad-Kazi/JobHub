@@ -2,18 +2,19 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getLocalUser } from "@/lib/utils";
 import { Resume as BaseResume } from "@shared/schema";
+import { useNavigate } from "react-router-dom";
 
-// Extended Resume interface to include id property
-interface Resume extends BaseResume {
+// Extended Resume interface to include id property for the component
+interface ResumeWithId extends BaseResume {
   id: string;
   _id?: string;
-  title: string;
 }
+
 import {
   Dialog,
   DialogContent,
@@ -60,9 +61,12 @@ export default function ApplicationModal({
   jobId,
 }: ApplicationModalProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [submitted, setSubmitted] = useState(false);
   const user = getLocalUser();
-  
+  const [isLoadingResumes, setIsLoadingResumes] = useState(true);
+  const [allResumes, setAllResumes] = useState<ResumeWithId[]>([]);
+
   const form = useForm<ApplicationFormValues>({
     resolver: zodResolver(applicationSchema),
     defaultValues: {
@@ -71,15 +75,41 @@ export default function ApplicationModal({
     },
   });
 
-  // Query to get user's resumes
-  const { 
-    data: resumes, 
-    isLoading: isLoadingResumes, 
-    error: resumesError 
-  } = useQuery<Resume[]>({
+  // Fetch resumes from API
+  const { data: apiResumes } = useQuery<any[]>({  // Using any[] temporarily to handle the API response
     queryKey: ["/api/resumes"],
     enabled: isOpen && !!user,
+    retry: 2
   });
+
+  // No longer using localStorage for resumes
+
+  // No longer syncing localStorage resumes with database
+
+  // Update resumes when API data changes or modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setIsLoadingResumes(true);
+      
+      if (apiResumes && Array.isArray(apiResumes)) {
+        // Use API resumes - map them to include id property
+        console.log('Using API resumes:', apiResumes);
+        const formattedResumes = apiResumes.map(resume => ({
+          ...resume,
+          id: resume._id || resume.id || ''
+        }));
+        setAllResumes(formattedResumes);
+      } else {
+        // No resumes found
+        setAllResumes([]);
+      }
+      
+      setIsLoadingResumes(false);
+    }
+  }, [isOpen, apiResumes, user]);
+  
+  // Use the API resumes for the form
+  const resumes = allResumes;
 
   // Mutation to submit the application
   const applicationMutation = useMutation({
@@ -87,7 +117,7 @@ export default function ApplicationModal({
       return apiRequest("POST", "/api/applications", {
         jobId,
         userId: user?.id,
-        resumeId: parseInt(data.resumeId),
+        resumeId: data.resumeId, // Use the string ID directly for MongoDB ObjectId
         coverLetter: data.coverLetter,
       });
     },
@@ -185,15 +215,20 @@ export default function ApplicationModal({
             </DialogHeader>
             
             {isLoadingResumes ? (
-              <div className="py-6 space-y-4">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-20 w-full" />
+              <div className="py-4 text-center">
+                <Skeleton className="h-8 w-full mb-2" />
+                <Skeleton className="h-8 w-full" />
               </div>
-            ) : resumesError ? (
+            ) : resumes.length === 0 ? (
               <div className="py-6 text-center">
-                <p className="text-red-500 mb-4">Failed to load resumes</p>
-                <Button onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/resumes"] })}>
-                  Try Again
+                <p className="text-amber-500">
+                  You don't have any resumes yet. Please create a resume first.
+                </p>
+                <Button
+                  className="mt-4"
+                  onClick={() => navigate("/resume-builder")}
+                >
+                  Create Resume
                 </Button>
               </div>
             ) : resumes && resumes.length > 0 ? (
@@ -217,7 +252,7 @@ export default function ApplicationModal({
                           <SelectContent>
                             {resumes.map((resume) => (
                               <SelectItem key={resume.id} value={resume.id.toString()}>
-                                {resume.title}
+                                {resume.title || `Resume for ${resume.content?.personalInfo?.name || 'Unknown'}`}
                               </SelectItem>
                             ))}
                           </SelectContent>

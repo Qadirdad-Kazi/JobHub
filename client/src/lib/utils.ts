@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format } from "date-fns";
+import { config } from "../config";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -87,11 +88,11 @@ export function formatJobType(type: string): string {
 }
 
 export const isAuthenticated = (): boolean => {
-  return !!localStorage.getItem('token');
+  return !!localStorage.getItem(config.auth.tokenKey);
 };
 
 export const getUserRole = (): string | null => {
-  const user = localStorage.getItem('user');
+  const user = localStorage.getItem(config.auth.userKey);
   if (!user) return null;
   try {
     return JSON.parse(user).role;

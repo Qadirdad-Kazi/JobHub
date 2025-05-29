@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserRole } from '../../../shared/schema';
+import { config } from '../config';
+import { api } from '../lib/api';
 
 interface User {
   id: number;
@@ -49,8 +51,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const verifyAuth = async () => {
       setIsLoading(true);
       try {
-        const token = localStorage.getItem('token');
-        const storedUser = localStorage.getItem('user');
+        const token = localStorage.getItem(config.auth.tokenKey);
+        const storedUser = localStorage.getItem(config.auth.userKey);
         
         if (!token || !storedUser) {
           // No token or user data found
@@ -64,30 +66,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Verify token with the server in the background
         try {
-          const response = await fetch('/api/auth/me', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
+          const response = await api.get('/api/auth/me');
 
-          if (response.ok) {
+          if (response.status === 200) {
             // Token is valid, update user data from server response
-            const userData = await response.json();
+            const userData = response.data;
             // Update the stored user data with fresh data from server
-            localStorage.setItem('user', JSON.stringify(userData));
+            localStorage.setItem(config.auth.userKey, JSON.stringify(userData));
             setUser(userData);
-          } else if (response.status === 401) {
-            // Only logout on explicit 401 Unauthorized
-            console.log('Invalid token (401), logging out');
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            setUser(null);
           }
           // For other error codes, keep the user logged in with stored data
-        } catch (networkError) {
-          // Network error - keep the user logged in with stored data
-          console.error('Network error during token verification:', networkError);
-          // User is already set from stored data, so we don't need to do anything
+        } catch (error: any) {
+          if (error.response && error.response.status === 401) {
+            // Only logout on explicit 401 Unauthorized
+            console.log('Invalid token (401), logging out');
+            localStorage.removeItem(config.auth.tokenKey);
+            localStorage.removeItem(config.auth.userKey);
+            setUser(null);
+          } else {
+            // Network error - keep the user logged in with stored data
+            console.error('Error during token verification:', error);
+            // User is already set from stored data, so we don't need to do anything
+          }
         }
       } catch (error) {
         console.error('Auth verification error:', error);
@@ -114,22 +114,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Login failed');
-      }
-      const data = await response.json();
+      const response = await api.post('/auth/login', { email, password });
+      const data = response.data;
       const userData: User = data.user;
-      localStorage.setItem('user', JSON.stringify(userData));
-      localStorage.setItem('token', data.token);
+      
+      // Store user data and token in localStorage using config keys
+      localStorage.setItem(config.auth.userKey, JSON.stringify(userData));
+      localStorage.setItem(config.auth.tokenKey, data.token);
+      
       setUser(userData);
+      
+      // Navigate based on user role
       if (userData.role === UserRole.JOBSEEKER) {
         navigate('/jobseeker/dashboard');
       } else {
@@ -137,7 +132,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error: any) {
       console.error('Login error:', error);
-      throw error;
+      const errorMessage = error.response?.data?.message || 'Login failed';
+      throw new Error(errorMessage);
     }
   };
 
@@ -169,55 +165,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Name must be at least 2 characters long');
       }
       
-      // Log the exact data being sent to the server
-      console.log('Sending registration data:', dataToSend);
-      console.log('JSON payload:', JSON.stringify(dataToSend));
-      
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(dataToSend),
-      });
-      
-      // First check if the response is ok
-      if (!response.ok) {
-        // Get the response text first to avoid JSON parsing errors
-        const responseText = await response.text();
-        console.error('Server error response text:', responseText);
-        
-        try {
-          // Try to parse the response as JSON if possible
-          if (responseText) {
-            const errorData = JSON.parse(responseText);
-            console.error('Server error response parsed:', errorData);
-            throw new Error(errorData.message || 'Registration failed');
-          }
-        } catch (parseError) {
-          // If we can't parse the error as JSON, use the text or status
-          console.error('Error parsing response as JSON:', parseError);
-        }
-        
-        // If we couldn't parse JSON or there was no text, use status
-        throw new Error(`Registration failed: ${response.status} ${response.statusText}`);
+      // Log the exact data being sent to the server (only in development)
+      if (config.app.isDevelopment) {
+        console.log('Sending registration data:', { ...dataToSend, password: '***', confirmPassword: '***' });
       }
       
-      // Parse successful response
-      const responseText = await response.text();
-      let data;
+      // Use the API client for the request
+      const response = await api.post('/auth/register', dataToSend);
       
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Error parsing success response:', parseError, 'Response text:', responseText);
-        throw new Error('Invalid response from server');
-      }
-      
+      const data = response.data;
       const newUser: User = data.user;
-      localStorage.setItem('user', JSON.stringify(newUser));
-      localStorage.setItem('token', data.token);
+      
+      // Store user data and token using config keys
+      localStorage.setItem(config.auth.userKey, JSON.stringify(newUser));
+      localStorage.setItem(config.auth.tokenKey, data.token);
+      
       setUser(newUser);
+      
+      // Navigate based on user role
       if (newUser.role === UserRole.JOBSEEKER) {
         navigate('/jobseeker/dashboard');
       } else {
@@ -225,12 +190,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error: any) {
       console.error('Registration error:', error);
-      throw error;
+      
+      // Extract error message from the response if available
+      const errorMessage = 
+        error.response?.data?.message || 
+        error.message || 
+        'Registration failed';
+      
+      throw new Error(errorMessage);
     }
   };
 
   const logout = () => {
-    localStorage.removeItem('user');
+    localStorage.removeItem(config.auth.userKey);
+    localStorage.removeItem(config.auth.tokenKey);
     setUser(null);
     navigate('/login');
   };

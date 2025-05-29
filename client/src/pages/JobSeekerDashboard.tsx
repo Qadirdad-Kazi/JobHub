@@ -35,10 +35,10 @@ export const JobSeekerDashboard: React.FC = () => {
     profileViews: number;
   };
 
-  // Fetch user profile data
-  const { data: userProfile, isLoading: isLoadingProfile } = useQuery<UserProfileType>({
+  // Fetch user profile data - disabled for now
+  const { data: userProfile } = useQuery<UserProfileType>({
     queryKey: ['/api/auth/me'],
-    enabled: !!user,
+    enabled: false, // Disable this query since the endpoint doesn't exist yet
     retry: 1,
     queryFn: async () => {
       try {
@@ -57,11 +57,25 @@ export const JobSeekerDashboard: React.FC = () => {
       }
     }
   });
+  
+  // Use user data from auth context as a fallback
+  const profile = userProfile || {
+    name: user?.name || 'User',
+    email: user?.email || '',
+    bio: null,
+    location: null,
+    profileImage: null,
+    skills: [],
+    experience: [],
+    education: [],
+    profileViews: 0
+  };
 
   // Fetch user's applications
   const { data: applications, isLoading: isLoadingApplications } = useQuery<Application[]>({
     queryKey: ['/api/applications/me'],
-    enabled: !!user && user.role === UserRole.JOBSEEKER,
+    // Disable this query until we fix the endpoint
+    enabled: false,
     retry: 1,
     queryFn: async () => {
       try {
@@ -82,10 +96,10 @@ export const JobSeekerDashboard: React.FC = () => {
     },
   });
 
-  // Fetch saved jobs
-  const { data: savedJobs, isLoading: isLoadingSavedJobs } = useQuery<Job[]>({
+  // Fetch saved jobs - disabled for now
+  const { } = useQuery<Job[]>({
     queryKey: ['/api/jobs/saved'],
-    enabled: !!user && user.role === UserRole.JOBSEEKER,
+    enabled: false, // Disable this query since the endpoint doesn't exist yet
     retry: 1,
     queryFn: async () => {
       try {
@@ -105,10 +119,13 @@ export const JobSeekerDashboard: React.FC = () => {
       }
     },
   });
+  
+  // Use empty array as fallback for saved jobs
 
   // Fetch personalized job recommendations
   const { data: recommendedJobsResponse, isLoading: isLoadingJobs } = useQuery<{data: Job[]}>({  
     queryKey: ['/api/recommendations'],
+    enabled: false, // Disable this query since the endpoint doesn't exist yet
     queryFn: async () => {
       try {
         const response = await fetch('/api/recommendations?limit=3', {
@@ -126,7 +143,6 @@ export const JobSeekerDashboard: React.FC = () => {
         return { data: [] }; // Return empty array on error
       }
     },
-    enabled: !!user && user.role === UserRole.JOBSEEKER,
     retry: 1,
   });
   
@@ -134,17 +150,17 @@ export const JobSeekerDashboard: React.FC = () => {
 
   // Calculate profile completion percentage
   const calculateProfileCompletion = () => {
-    if (!userProfile) return 0;
+    // Use our fallback profile data
     
     // Count completed profile fields
     const fieldsToCheck = [
-      { field: 'name', value: userProfile.name },
-      { field: 'email', value: userProfile.email },
-      { field: 'bio', value: userProfile.bio },
-      { field: 'location', value: userProfile.location },
-      { field: 'skills', value: userProfile.skills?.length > 0 },
-      { field: 'experience', value: userProfile.experience?.length > 0 },
-      { field: 'education', value: userProfile.education?.length > 0 },
+      { field: 'name', value: profile.name },
+      { field: 'email', value: profile.email },
+      { field: 'bio', value: profile.bio },
+      { field: 'location', value: profile.location },
+      { field: 'skills', value: profile.skills?.length > 0 },
+      { field: 'experience', value: profile.experience?.length > 0 },
+      { field: 'education', value: profile.education?.length > 0 },
     ];
     
     const totalFields = fieldsToCheck.length;
@@ -198,7 +214,7 @@ export const JobSeekerDashboard: React.FC = () => {
                       Saved Jobs
                     </Typography>
                     <Typography variant="h4">
-                      {isLoadingSavedJobs ? '...' : (savedJobs && savedJobs.length) || 0}
+                      0
                     </Typography>
                   </CardContent>
                 </Card>
@@ -210,7 +226,7 @@ export const JobSeekerDashboard: React.FC = () => {
                       Profile Views
                     </Typography>
                     <Typography variant="h4">
-                      {isLoadingProfile ? '...' : userProfile?.profileViews || 0}
+                      {profile.profileViews}
                     </Typography>
                   </CardContent>
                 </Card>

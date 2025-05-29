@@ -40,7 +40,7 @@ export const App: React.FC = () => {
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/jobs" element={<JobsPage />} />
-                  <Route path="/jobs/:id" element={<JobDetailPage id={0} />} />
+                  <Route path="/jobs/:id" element={<JobDetailPage />} />
                   
                   {/* Protected Job Seeker Routes */}
                   <Route

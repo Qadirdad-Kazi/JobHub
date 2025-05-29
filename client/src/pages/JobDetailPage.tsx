@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Job } from "@shared/schema";
+import { api } from "../lib/api";
 
 // Extended Job interface to include tags that might be present in the API response
 interface ExtendedJob extends Job {
@@ -16,30 +18,40 @@ import { formatSalary, formatDate, isAuthenticated, isJobSeeker } from "@/lib/ut
 import { CalendarIcon, MapPinIcon, BuildingIcon, BriefcaseIcon, DollarSignIcon } from "lucide-react";
 import ApplicationModal from "@/components/ApplicationModal";
 
-interface JobDetailPageProps {
-  id: number;
-}
-
-export default function JobDetailPage({ id }: JobDetailPageProps) {
-  const [, navigate] = useLocation();
+export default function JobDetailPage() {
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const [showApplicationModal, setShowApplicationModal] = useState(false);
 
+  // Add debugging for params and ID
+  console.log('JobDetailPage - params:', { id });
+
   const { data: job, isLoading, error } = useQuery<ExtendedJob>({
-    queryKey: [`/api/jobs/${id}`],
+    queryKey: [`jobs/${id}`],
     queryFn: async () => {
       try {
-        const response = await fetch(`/api/jobs/${id}`);
-        
-        if (!response.ok) {
-          throw new Error(`Error fetching job details: ${response.status} ${response.statusText}`);
+        // Check if ID is valid before making the request
+        if (!id || id === 'undefined') {
+          console.error('Invalid job ID:', id);
+          throw new Error('Invalid job ID');
         }
         
-        return response.json();
-      } catch (error) {
+        console.log('Fetching job with ID:', id);
+        const response = await api.get(`/jobs/${id}`);
+        console.log('Job data received:', response.data);
+        return response.data;
+      } catch (error: any) {
         console.error('Error fetching job details:', error);
-        throw error;
+        const errorMessage = 
+          error.response?.data?.message || 
+          error.message || 
+          'Error fetching job details';
+        throw new Error(errorMessage);
       }
-    }
+    },
+    retry: 1,
+    retryDelay: 1000,
+    enabled: !!id // Only run the query if we have an ID
   });
 
   useEffect(() => {

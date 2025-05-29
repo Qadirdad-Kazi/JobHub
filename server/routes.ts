@@ -509,7 +509,15 @@ export function registerRoutes(app: Express): Server {
 
   app.get('/api/jobs/:id', async (req: Request, res) => {
     try {
-      const job = await Job.findById(req.params.id)
+      const { id } = req.params;
+      
+      // Check if the ID is a valid MongoDB ObjectId
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        console.log(`Invalid job ID format: ${id}`);
+        return res.status(400).json({ message: 'Invalid job ID format' });
+      }
+      
+      const job = await Job.findById(id)
         .populate('postedBy', 'name company');
       
       if (!job) {
@@ -901,6 +909,183 @@ export function registerRoutes(app: Express): Server {
         success: false,
         message: 'Failed to get employer analytics'
       });
+    }
+  });
+
+  // Get user's applications
+  app.get('/api/applications/me', authenticate, authorizeJobSeeker, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      // Find all applications for this user
+      const applications = await Application.find({ userId: req.user._id })
+        .populate('jobId')
+        .sort({ createdAt: -1 });
+      
+      res.json(applications);
+    } catch (error) {
+      console.error('Error fetching user applications:', error);
+      res.status(500).json({ message: 'Server error fetching applications' });
+    }
+  });
+
+  // Get user's saved jobs
+  app.get('/api/jobs/saved', authenticate, authorizeJobSeeker, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      // For now, return an empty array since the saved jobs feature is not implemented yet
+      // In the future, this would query a SavedJob model or similar
+      res.json([]);
+    } catch (error) {
+      console.error('Error fetching saved jobs:', error);
+      res.status(500).json({ message: 'Server error fetching saved jobs' });
+    }
+  });
+
+  // Create a new resume
+  app.post('/api/resumes', authenticate, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      console.log('Resume data received:', req.body);
+      
+      const { personalInfo, experience, education, skills } = req.body;
+      
+      if (!personalInfo) {
+        return res.status(400).json({
+          success: false,
+          message: 'Missing required resume data'
+        });
+      }
+      
+      // Format the data to match the Resume model structure
+      const resumeData = {
+        userId: req.user._id,
+        title: `${personalInfo.firstName || ''} ${personalInfo.lastName || ''}'s Resume`,
+        content: {
+          personalInfo: {
+            name: `${personalInfo.firstName || ''} ${personalInfo.lastName || ''}`,
+            email: personalInfo.email || '',
+            phone: personalInfo.phone || '',
+            location: personalInfo.address || '',
+            website: personalInfo.website || ''
+          },
+          education: education && education.length > 0 ? education.map((edu: any) => ({
+            school: edu.school || '',
+            degree: edu.degree || '',
+            fieldOfStudy: edu.field || '',
+            startDate: edu.startDate ? new Date(edu.startDate) : new Date(),
+            endDate: edu.endDate ? new Date(edu.endDate) : undefined,
+            description: edu.description || ''
+          })) : [],
+          experience: experience && experience.length > 0 ? experience.map((exp: any) => ({
+            company: exp.company || '',
+            position: exp.position || '',
+            location: exp.location || '',
+            startDate: exp.startDate ? new Date(exp.startDate) : new Date(),
+            endDate: exp.endDate ? new Date(exp.endDate) : undefined,
+            description: exp.description || ''
+          })) : [],
+          skills: Array.isArray(skills) ? skills : 
+                 (typeof skills === 'string' ? skills.split(',').map((skill: string) => skill.trim()) : []),
+          projects: []
+        }
+      };
+      
+      console.log('Formatted resume data for DB:', resumeData);
+      
+      // Create the resume
+      const resume = new Resume(resumeData);
+      await resume.save();
+      
+      res.status(201).json({
+        success: true,
+        message: 'Resume created successfully',
+        resume
+      });
+    } catch (error) {
+      console.error('Error creating resume:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to create resume'
+      });
+    }
+  });
+  
+  // Get all resumes for the current user
+  app.get('/api/resumes', authenticate, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      const resumes = await Resume.find({ userId: req.user._id });
+      console.log(`Found ${resumes.length} resumes for user ${req.user._id}`);
+      
+      // Return just the array of resumes to match client expectations
+      res.json(resumes);
+    } catch (error) {
+      console.error('Error fetching resumes:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch resumes'
+      });
+    }
+  });
+  
+  // Get a specific resume by ID
+  app.get('/api/resumes/:id', authenticate, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      const resume = await Resume.findOne({ _id: req.params.id, userId: req.user._id });
+      
+      if (!resume) {
+        return res.status(404).json({
+          success: false,
+          message: 'Resume not found'
+        });
+      }
+      
+      // Return just the resume object to match client expectations
+      res.json(resume);
+    } catch (error) {
+      console.error('Error fetching resume:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch resume'
+      });
+    }
+  });
+
+  // Get current user profile data
+  app.get('/api/auth/me', authenticate, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      // Find the user without returning the password
+      const user = await User.findById(req.user._id).select('-password');
+      
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Return the user profile
+      res.json(user);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      res.status(500).json({ message: 'Server error fetching user profile' });
     }
   });
 

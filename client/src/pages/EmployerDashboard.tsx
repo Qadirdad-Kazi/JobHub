@@ -55,8 +55,9 @@ interface Application {
   };
 }
 
-interface DashboardStats {
+interface Stats {
   activeJobs: number;
+  totalJobs: number;
   totalApplications: number;
   interviewsScheduled: number;
   positionsFilled: number;
@@ -70,7 +71,7 @@ export const EmployerDashboard: React.FC = () => {
   
   
   // Fetch employer's jobs
-  const { data: jobs, isLoading: isLoadingJobs } = useQuery<Job[]>({
+  const { data: jobsResponse, isLoading: isLoadingJobs } = useQuery({
     queryKey: ['/api/jobs'],
     enabled: !!user,
     queryFn: async () => {
@@ -82,41 +83,38 @@ export const EmployerDashboard: React.FC = () => {
         });
         if (!response.ok) {
           console.error('Error fetching employer jobs:', response.status, response.statusText);
-          return [];
+          return { jobs: [], pagination: { total: 0, page: 1, pages: 1 } };
         }
-        const data = await response.json();
-        // Extract jobs array from response (handle both array and paginated object formats)
-        const jobsArray = data.jobs ? data.jobs : (Array.isArray(data) ? data : []);
-        
-        // Filter jobs based on the user ID using the same logic as EmployerJobs component
-        if (jobsArray.length > 0) {
-          const filteredJobs = jobsArray.filter((job: Job) => {
-            // Type guard to check if postedBy is an object with _id property
-            const isPostedByObject = (postedBy: any): postedBy is { _id: string; name: string } => {
-              return typeof postedBy === 'object' && postedBy !== null && '_id' in postedBy;
-            };
-            
-            // Handle postedBy as an object with _id property
-            const jobPostedById = isPostedByObject(job.postedBy)
-              ? String(job.postedBy._id)
-              : String(job.postedBy || '');
-              
-            const userId = String(user?.id || '');
-            
-            // Check for exact match
-            return jobPostedById === userId;
-          });
-          
-          return filteredJobs.length > 0 ? filteredJobs : [];
-        }
-        
-        return [];
+        return response.json();
       } catch (error) {
         console.error('Error fetching employer jobs:', error);
-        return [];
+        return { jobs: [], pagination: { total: 0, page: 1, pages: 1 } };
       }
     }
   });
+  
+  // Extract and filter jobs
+  const jobs = React.useMemo(() => {
+    if (!jobsResponse?.jobs || !user) return [];
+    
+    // Filter jobs based on the user ID
+    return jobsResponse.jobs.filter((job: Job) => {
+      // Type guard to check if postedBy is an object with _id property
+      const isPostedByObject = (postedBy: any): postedBy is { _id: string; name: string } => {
+        return typeof postedBy === 'object' && postedBy !== null && '_id' in postedBy;
+      };
+      
+      // Handle postedBy as an object with _id property
+      const jobPostedById = isPostedByObject(job.postedBy)
+        ? String(job.postedBy._id)
+        : String(job.postedBy || '');
+        
+      const userId = String(user?.id || '');
+      
+      // Check for exact match
+      return jobPostedById === userId;
+    });
+  }, [jobsResponse, user]);
   
   
   // Fetch recent applications
@@ -135,11 +133,11 @@ export const EmployerDashboard: React.FC = () => {
   });
   
   // Calculate stats from jobs data
-  const stats = React.useMemo(() => {
+  const stats: Stats | null = React.useMemo(() => {
     if (!jobs) return null;
     
     // Calculate active jobs (jobs with no status or status === 'active')
-    const activeJobs = jobs.filter(job => !job.status || job.status === 'active' || job.status === 'Active').length;
+    const activeJobs = jobs.filter((job: any) => !job.status || job.status === 'active' || job.status === 'Active').length;
     
     return {
       activeJobs,
@@ -206,7 +204,7 @@ export const EmployerDashboard: React.FC = () => {
                       {isLoadingStats ? (
                         <CircularProgress size={24} />
                       ) : (
-                        <Typography variant="h4">{stats?.activeJobs !== undefined ? stats.activeJobs : (jobs && jobs.length > 0 ? jobs.filter(job => !job.status || job.status === 'active' || job.status === 'Active').length : 0)}</Typography>
+                        <Typography variant="h4">{stats?.activeJobs !== undefined ? stats.activeJobs : (jobs && jobs.length > 0 ? jobs.filter((job: any) => !job.status || job.status === 'active' || job.status === 'Active').length : 0)}</Typography>
                       )}
                     </CardContent>
                   </Card>
