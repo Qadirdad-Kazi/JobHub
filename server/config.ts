@@ -29,21 +29,11 @@ export const config = {
     from: process.env.EMAIL_FROM || 'noreply@careerconnectpro.com'
   },
   corsOptions: {
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      const allowedOrigins = [process.env.CLIENT_URL || 'http://localhost:5173'];
-      
-      // In development, allow no origin (for tools like Postman)
-      if (!origin && isDevelopment) {
-        return callback(null, true);
-      }
-      
-      // Check if the origin is allowed
-      if (origin && allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    // In development mode, allow all origins
+    origin: isDevelopment ? true : [
+      process.env.CLIENT_URL || 'http://localhost:5173',
+      'http://localhost:5174'
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],

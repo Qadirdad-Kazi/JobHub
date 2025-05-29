@@ -23,6 +23,7 @@ export const Register: React.FC = () => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -55,6 +56,8 @@ export const Register: React.FC = () => {
       await register({
         email: formData.email,
         password: formData.password,
+        confirmPassword: formData.confirmPassword,
+        username: formData.username,
         firstName: formData.firstName,
         lastName: formData.lastName,
         role: formData.role,
@@ -92,7 +95,7 @@ export const Register: React.FC = () => {
           
           <form onSubmit={handleSubmit}>
             <Grid container spacing={3}>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{xs: 12, sm: 6}}>
                 <TextField
                   fullWidth
                   label="First Name"
@@ -103,7 +106,7 @@ export const Register: React.FC = () => {
                   onChange={handleChange}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{xs: 12, sm: 6}}>
                 <TextField
                   fullWidth
                   label="Last Name"
@@ -114,7 +117,18 @@ export const Register: React.FC = () => {
                   onChange={handleChange}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
+                <TextField
+                  fullWidth
+                  label="Username"
+                  name="username"
+                  required
+                  variant="outlined"
+                  value={formData.username}
+                  onChange={handleChange}
+                />
+              </Grid>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Email"
@@ -126,7 +140,7 @@ export const Register: React.FC = () => {
                   onChange={handleChange}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Password"
@@ -138,7 +152,7 @@ export const Register: React.FC = () => {
                   onChange={handleChange}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Confirm Password"
@@ -150,7 +164,7 @@ export const Register: React.FC = () => {
                   onChange={handleChange}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <FormControl fullWidth required>
                   <InputLabel>Account Type</InputLabel>
                   <Select
@@ -164,7 +178,7 @@ export const Register: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Button
                   type="submit"
                   fullWidth

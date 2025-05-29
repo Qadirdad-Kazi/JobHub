@@ -33,7 +33,7 @@ const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string(),
-  role: z.nativeEnum(UserRole),
+  role: z.nativeEnum(UserRole).default(UserRole.JOBSEEKER),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -45,27 +45,59 @@ export const Register: React.FC = () => {
   const navigate = useNavigate();
   const { register: registerAuth } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
+  
+  // Check if the user is coming from the post-job page
+  const queryParams = new URLSearchParams(window.location.search);
+  const isEmployerRegistration = queryParams.get('role') === 'employer';
+  
+  // Set the initial role based on the URL parameter
+  const initialRole = isEmployerRegistration ? UserRole.EMPLOYER : UserRole.JOBSEEKER;
+  
+  // Log the initial role for debugging
+  console.log('Initial role set to:', initialRole, 'isEmployerRegistration:', isEmployerRegistration);
 
-  const { register, handleSubmit, formState: { errors, isValid }, watch } = useForm<RegisterFormData>({
+  const { register, handleSubmit, formState: { errors, isValid }, watch, setValue } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      role: UserRole.JOBSEEKER
-    }
+      firstName: '',
+      lastName: '',
+      username: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      role: initialRole
+    },
+    mode: 'onChange'
   });
+  
+  // Ensure role is set to a valid value on component mount
+  useEffect(() => {
+    // Force set the role value to ensure it's properly initialized
+    setValue('role', initialRole, { shouldValidate: true });
+  }, [initialRole, setValue]);
 
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterFormData) => {
       try {
+        // Force the correct role based on the URL parameter
+        const correctedRole = isEmployerRegistration ? UserRole.EMPLOYER : data.role;
+        console.log('Registration with role:', correctedRole);
+        
+        // Use the AuthContext register function
         await registerAuth({
           email: data.email,
           password: data.password,
+          confirmPassword: data.confirmPassword,
           firstName: data.firstName,
           lastName: data.lastName,
           username: data.username,
-          role: data.role
+          role: correctedRole,
+          name: `${data.firstName} ${data.lastName}`
         });
+        
         return { success: true };
       } catch (error) {
+        console.error('Registration error:', error);
         throw new Error(error instanceof Error ? error.message : 'Registration failed');
       }
     },
@@ -81,38 +113,14 @@ export const Register: React.FC = () => {
 
   const onSubmit = (data: RegisterFormData) => {
     console.log('Form submitted with data:', data);
+    // No need to modify the data here as the mutation function will handle it
     setServerError(null);
     registerMutation.mutate(data);
   };
 
-  // Direct submit function that bypasses form validation
-  const directSubmit = () => {
-    // Generate unique username and email to avoid duplicate key errors
-    const randomSuffix = Math.floor(Math.random() * 10000);
-    const username = `testuser${randomSuffix}`;
-    const email = `test${randomSuffix}@example.com`;
-    
-    // First and last name for the test user
-    const firstName = 'Test';
-    const lastName = 'User';
-    
-    // Create a test user with all required fields in the correct format
-    // Including the name field which is required by the server model
-    const testUser = {
-      firstName: firstName,
-      lastName: lastName,
-      username: username, // Must be unique
-      email: email, // Must be unique
-      password: 'Password123', // At least 6 characters
-      confirmPassword: 'Password123',
-      role: UserRole.JOBSEEKER, // Using the enum value 'jobseeker'
-      // Explicitly include the name field to match server schema requirements
-      name: `${firstName} ${lastName}`
-    };
-    
-    console.log('Direct submit with test data:', testUser);
-    registerMutation.mutate(testUser);
-  };
+  // This function is not used in the application
+  // Removing to fix the lint warning
+  
 
   const selectedRole = watch('role');
 
@@ -138,8 +146,8 @@ export const Register: React.FC = () => {
                   <FormLabel component="legend">I want to:</FormLabel>
                   <RadioGroup
                     row
-                    {...register('role')}
-                    defaultValue={UserRole.JOBSEEKER as UserRole}
+                    value={watch('role') || initialRole}
+                    onChange={(e) => setValue('role', e.target.value as UserRole, { shouldValidate: true })}
                   >
                     <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
                       <Box width="100%" sx={{ flex: 1 }}>
@@ -151,10 +159,7 @@ export const Register: React.FC = () => {
                             border: selectedRole === UserRole.JOBSEEKER ? 2 : 1,
                             borderColor: selectedRole === UserRole.JOBSEEKER ? 'primary.main' : 'grey.300',
                           }}
-                          onClick={() => {
-                            const roleField = register('role');
-                            roleField.onChange({ target: { value: UserRole.JOBSEEKER } });
-                          }}
+                          onClick={() => setValue('role', UserRole.JOBSEEKER, { shouldValidate: true })}
                         >
                           <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             <WorkIcon sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
@@ -182,10 +187,7 @@ export const Register: React.FC = () => {
                             border: selectedRole === UserRole.EMPLOYER ? 2 : 1,
                             borderColor: selectedRole === UserRole.EMPLOYER ? 'primary.main' : 'grey.300',
                           }}
-                          onClick={() => {
-                            const roleField = register('role');
-                            roleField.onChange({ target: { value: UserRole.EMPLOYER } });
-                          }}
+                          onClick={() => setValue('role', UserRole.EMPLOYER, { shouldValidate: true })}
                         >
                           <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             <BusinessIcon sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
@@ -277,13 +279,12 @@ export const Register: React.FC = () => {
               </Box>
               <Box width="100%">
                 <Button
-                  type="button"
+                  type="submit"
                   variant="contained"
                   color="primary"
                   fullWidth
                   size="large"
-                  onClick={directSubmit}
-                  disabled={false}
+                  disabled={registerMutation.isPending}
                 >
                   {registerMutation.isPending ? (
                     <CircularProgress size={24} color="inherit" />

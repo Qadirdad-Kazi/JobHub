@@ -14,7 +14,6 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../../context/AuthContext';
-import { UserRole } from '../../../../shared/schema';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
@@ -37,36 +36,14 @@ export const Login: React.FC = () => {
   const loginMutation = useMutation({
     mutationFn: async (data: LoginFormData) => {
       try {
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(data),
-        });
-        
-        if (!response.ok) {
-          // Create a clone of the response to read the body
-          const responseClone = response.clone();
-          
-          try {
-            const errorData = await responseClone.json();
-            console.error('Server error response:', errorData);
-            throw new Error(errorData.message || 'Login failed');
-          } catch (parseError) {
-            // If we can't parse the error as JSON, use the status text
-            console.error('Error parsing response:', parseError);
-            throw new Error(`Login failed: ${response.statusText}`);
-          }
-        }
-        
-        return response.json();
+        // Use the login function from AuthContext instead
+        await login(data.email, data.password);
+        return { success: true };
       } catch (error: any) {
         console.error('Login error:', error);
         throw error;
       }
     },
-    onSuccess: (data) => handleLoginSuccess(data),
     onError: (error) => {
       setServerError(error.message);
     },
@@ -75,20 +52,6 @@ export const Login: React.FC = () => {
   const onSubmit = (data: LoginFormData) => {
     setServerError(null);
     loginMutation.mutate(data);
-  };
-
-  // Handle successful login
-  const handleLoginSuccess = (data: any) => {
-    // Store user data and token
-    localStorage.setItem('user', JSON.stringify(data.user));
-    localStorage.setItem('token', data.token);
-    
-    // Redirect based on user role
-    if (data.user.role === UserRole.JOBSEEKER) {
-      navigate('/jobseeker/dashboard');
-    } else {
-      navigate('/employer/dashboard');
-    }
   };
 
   return (

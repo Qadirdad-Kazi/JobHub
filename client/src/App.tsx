@@ -9,13 +9,17 @@ import { AuthProvider } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { UserRole } from '@shared/schema';
 import { Home } from './pages/Home';
 import { JobsPage } from './pages/JobsPage';
 import JobDetailPage from './pages/JobDetailPage';
 import { PostJob } from './pages/PostJob';
 import { JobSeekerDashboard } from './pages/JobSeekerDashboard';
 import { EmployerDashboard } from './pages/EmployerDashboard';
+import { EmployerJobs } from './pages/EmployerJobs';
 import { ResumeBuilder } from './pages/ResumeBuilder';
+import { ProfilePage } from './pages/ProfilePage';
+import { MyApplications } from './pages/MyApplications';
 import { Login } from './pages/auth/Login';
 import { Register } from './pages/auth/Register';
 
@@ -36,13 +40,13 @@ export const App: React.FC = () => {
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/jobs" element={<JobsPage />} />
-                  <Route path="/jobs/:id" element={<JobDetailPage />} />
+                  <Route path="/jobs/:id" element={<JobDetailPage id={0} />} />
                   
                   {/* Protected Job Seeker Routes */}
                   <Route
                     path="/jobseeker/dashboard"
                     element={
-                      <ProtectedRoute allowedRoles={['jobseeker']}>
+                      <ProtectedRoute allowedRoles={[UserRole.JOBSEEKER]}>
                         <JobSeekerDashboard />
                       </ProtectedRoute>
                     }
@@ -50,7 +54,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/resume-builder"
                     element={
-                      <ProtectedRoute allowedRoles={['jobseeker']}>
+                      <ProtectedRoute allowedRoles={[UserRole.JOBSEEKER]}>
                         <ResumeBuilder />
                       </ProtectedRoute>
                     }
@@ -60,7 +64,7 @@ export const App: React.FC = () => {
                   <Route
                     path="/employer/dashboard"
                     element={
-                      <ProtectedRoute allowedRoles={['employer']}>
+                      <ProtectedRoute allowedRoles={[UserRole.EMPLOYER]}>
                         <EmployerDashboard />
                       </ProtectedRoute>
                     }
@@ -68,8 +72,54 @@ export const App: React.FC = () => {
                   <Route
                     path="/post-job"
                     element={
-                      <ProtectedRoute allowedRoles={['employer']}>
+                      <ProtectedRoute allowedRoles={[UserRole.EMPLOYER]}>
                         <PostJob />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/employer/post-job"
+                    element={
+                      <ProtectedRoute allowedRoles={[UserRole.EMPLOYER]}>
+                        <PostJob />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/employer/jobs"
+                    element={
+                      <ProtectedRoute allowedRoles={[UserRole.EMPLOYER]}>
+                        <EmployerJobs />
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  {/* Profile Page - Available for both jobseekers and employers */}
+                  <Route
+                    path="/profile"
+                    element={
+                      <ProtectedRoute allowedRoles={[UserRole.JOBSEEKER, UserRole.EMPLOYER]}>
+                        <ProfilePage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  {/* Applications Page - Available for job seekers */}
+                  <Route
+                    path="/applications"
+                    element={
+                      <ProtectedRoute allowedRoles={[UserRole.JOBSEEKER]}>
+                        <MyApplications />
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  {/* Alternative path for applications */}
+                  <Route
+                    path="/jobseeker/applications"
+                    element={
+                      <ProtectedRoute allowedRoles={[UserRole.JOBSEEKER]}>
+                        <MyApplications />
                       </ProtectedRoute>
                     }
                   />
