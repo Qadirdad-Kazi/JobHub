@@ -86,7 +86,7 @@ export const EmployerDashboard: React.FC = () => {
         }
         const data = await response.json();
         // Filter jobs posted by the current user
-        return Array.isArray(data) ? data.filter((job: Job) => job.postedBy === user?.id) : [];
+        return Array.isArray(data) ? data.filter((job: Job) => job.postedBy && user?.id && job.postedBy.toString() === user.id.toString()) : [];
       } catch (error) {
         console.error('Error fetching employer jobs:', error);
         return [];
@@ -221,7 +221,7 @@ export const EmployerDashboard: React.FC = () => {
                       {isLoadingStats ? (
                         <CircularProgress size={24} />
                       ) : (
-                        <Typography variant="h4">{stats?.totalApplications !== undefined ? stats.totalApplications : (applications?.length || 'Not Available')}</Typography>
+                        <Typography variant="h4">{stats?.totalApplications !== undefined ? stats.totalApplications : (applications && applications.length > 0 ? applications.length : 0)}</Typography>
                       )}
                     </CardContent>
                   </Card>
@@ -235,7 +235,7 @@ export const EmployerDashboard: React.FC = () => {
                       {isLoadingStats ? (
                         <CircularProgress size={24} />
                       ) : (
-                        <Typography variant="h4">{stats?.interviewsScheduled !== undefined ? stats.interviewsScheduled : 'Not Available'}</Typography>
+                        <Typography variant="h4">{stats?.interviewsScheduled !== undefined ? stats.interviewsScheduled : 0}</Typography>
                       )}
                     </CardContent>
                   </Card>
@@ -249,7 +249,7 @@ export const EmployerDashboard: React.FC = () => {
                       {isLoadingStats ? (
                         <CircularProgress size={24} />
                       ) : (
-                        <Typography variant="h4">{stats?.positionsFilled !== undefined ? stats.positionsFilled : 'Not Available'}</Typography>
+                        <Typography variant="h4">{stats?.positionsFilled !== undefined ? stats.positionsFilled : 0}</Typography>
                       )}
                     </CardContent>
                   </Card>
