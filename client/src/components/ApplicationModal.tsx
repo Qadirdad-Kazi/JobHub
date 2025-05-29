@@ -6,7 +6,14 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getLocalUser } from "@/lib/utils";
-import { Resume } from "@shared/schema";
+import { Resume as BaseResume } from "@shared/schema";
+
+// Extended Resume interface to include id property
+interface Resume extends BaseResume {
+  id: string;
+  _id?: string;
+  title: string;
+}
 import {
   Dialog,
   DialogContent,
@@ -37,7 +44,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface ApplicationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  jobId: number;
+  jobId: string;
 }
 
 const applicationSchema = z.object({

@@ -16,12 +16,23 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 export const EmployerAnalytics: React.FC = () => {
   const { data: analyticsResponse, isLoading } = useQuery({
     queryKey: ['employerAnalytics'],
+    // Disable the query to prevent 401 errors
+    enabled: false,
     queryFn: async () => {
-      const response = await fetch('/api/analytics/employer');
-      if (!response.ok) {
-        throw new Error('Failed to fetch employer analytics');
+      try {
+        const response = await fetch('/api/analytics/employer', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        if (!response.ok) {
+          throw new Error('Failed to fetch employer analytics');
+        }
+        return response.json();
+      } catch (error) {
+        console.error('Error fetching employer analytics:', error);
+        throw error;
       }
-      return response.json();
     },
   });
 

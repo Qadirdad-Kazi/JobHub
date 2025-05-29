@@ -40,6 +40,22 @@ export const JobSeekerDashboard: React.FC = () => {
     queryKey: ['/api/auth/me'],
     enabled: !!user,
     retry: 1,
+    queryFn: async () => {
+      try {
+        const response = await fetch('/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        if (!response.ok) {
+          throw new Error(`Error fetching user profile: ${response.status} ${response.statusText}`);
+        }
+        return response.json();
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+        throw error;
+      }
+    }
   });
 
   // Fetch user's applications

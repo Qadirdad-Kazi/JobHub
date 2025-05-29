@@ -2,6 +2,12 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Job } from "@shared/schema";
+
+// Extended Job interface to include tags that might be present in the API response
+interface ExtendedJob extends Job {
+  tags?: string[];
+  id?: string; // Some places might use id instead of _id
+}
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,8 +24,22 @@ export default function JobDetailPage({ id }: JobDetailPageProps) {
   const [, navigate] = useLocation();
   const [showApplicationModal, setShowApplicationModal] = useState(false);
 
-  const { data: job, isLoading, error } = useQuery<Job>({
+  const { data: job, isLoading, error } = useQuery<ExtendedJob>({
     queryKey: [`/api/jobs/${id}`],
+    queryFn: async () => {
+      try {
+        const response = await fetch(`/api/jobs/${id}`);
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching job details: ${response.status} ${response.statusText}`);
+        }
+        
+        return response.json();
+      } catch (error) {
+        console.error('Error fetching job details:', error);
+        throw error;
+      }
+    }
   });
 
   useEffect(() => {
@@ -139,11 +159,11 @@ export default function JobDetailPage({ id }: JobDetailPageProps) {
                   </div>
                   <div className="flex items-center text-gray-700">
                     <DollarSignIcon className="h-5 w-5 mr-2 text-gray-500" />
-                    <span>{formatSalary(job.salary)}</span>
+                    <span>{job.salary ? formatSalary(job.salary.min + '-' + job.salary.max + ' ' + job.salary.currency) : 'Not specified'}</span>
                   </div>
                   <div className="flex items-center text-gray-700">
                     <CalendarIcon className="h-5 w-5 mr-2 text-gray-500" />
-                    <span>Posted on {formatDate(job.createdAt)}</span>
+                    <span>Posted on {job.createdAt ? formatDate(job.createdAt) : 'Unknown date'}</span>
                   </div>
                 </div>
 
@@ -152,7 +172,7 @@ export default function JobDetailPage({ id }: JobDetailPageProps) {
                     <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
                       {job.type}
                     </Badge>
-                    {job.tags && Array.isArray(job.tags) && job.tags.map((tag, index) => (
+                    {job.tags && Array.isArray(job.tags) && job.tags.map((tag: string, index: number) => (
                       <Badge key={index} variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
                         {tag}
                       </Badge>
@@ -173,9 +193,9 @@ export default function JobDetailPage({ id }: JobDetailPageProps) {
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900 mb-4">Requirements</h2>
                     <div className="prose max-w-none text-gray-700">
-                      {job.requirements.split('\n').map((requirement, index) => (
+                      {Array.isArray(job.requirements) ? job.requirements.map((requirement: string, index: number) => (
                         <p key={index} className="mb-4">{requirement}</p>
-                      ))}
+                      )) : null}
                     </div>
                   </div>
                 </div>
@@ -195,7 +215,7 @@ export default function JobDetailPage({ id }: JobDetailPageProps) {
             <ApplicationModal 
               isOpen={showApplicationModal} 
               onClose={() => setShowApplicationModal(false)} 
-              jobId={job.id}
+              jobId={job._id || ''}
             />
           </>
         ) : null}

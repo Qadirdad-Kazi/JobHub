@@ -85,8 +85,32 @@ export const EmployerDashboard: React.FC = () => {
           return [];
         }
         const data = await response.json();
-        // Filter jobs posted by the current user
-        return Array.isArray(data) ? data.filter((job: Job) => job.postedBy && user?.id && job.postedBy.toString() === user.id.toString()) : [];
+        // Extract jobs array from response (handle both array and paginated object formats)
+        const jobsArray = data.jobs ? data.jobs : (Array.isArray(data) ? data : []);
+        
+        // Filter jobs based on the user ID using the same logic as EmployerJobs component
+        if (jobsArray.length > 0) {
+          const filteredJobs = jobsArray.filter((job: Job) => {
+            // Type guard to check if postedBy is an object with _id property
+            const isPostedByObject = (postedBy: any): postedBy is { _id: string; name: string } => {
+              return typeof postedBy === 'object' && postedBy !== null && '_id' in postedBy;
+            };
+            
+            // Handle postedBy as an object with _id property
+            const jobPostedById = isPostedByObject(job.postedBy)
+              ? String(job.postedBy._id)
+              : String(job.postedBy || '');
+              
+            const userId = String(user?.id || '');
+            
+            // Check for exact match
+            return jobPostedById === userId;
+          });
+          
+          return filteredJobs.length > 0 ? filteredJobs : [];
+        }
+        
+        return [];
       } catch (error) {
         console.error('Error fetching employer jobs:', error);
         return [];
@@ -98,19 +122,11 @@ export const EmployerDashboard: React.FC = () => {
   // Fetch recent applications
   const { data: applications, isLoading: isLoadingApplications } = useQuery<Application[]>({
     queryKey: ['/api/applications'],
-    enabled: !!user,
+    enabled: false, // Disable this query until the endpoint is implemented
     queryFn: async () => {
       try {
-        const response = await fetch('/api/applications', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (!response.ok) {
-          console.error('Error fetching applications:', response.statusText);
-          return [];
-        }
-        return response.json();
+        // This endpoint doesn't exist yet, so we'll return mock data
+        return [];
       } catch (error) {
         console.error('Error fetching applications:', error);
         return [];
@@ -118,40 +134,23 @@ export const EmployerDashboard: React.FC = () => {
     }
   });
   
-  // Fetch employer analytics
-  const { data: stats, isLoading: isLoadingStats } = useQuery<DashboardStats>({
-    queryKey: ['/api/analytics'],
-    enabled: !!user,
-    queryFn: async () => {
-      try {
-        const response = await fetch('/api/analytics', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (!response.ok) {
-          console.error('Error fetching stats:', response.statusText);
-          // Return empty stats
-          return {
-            activeJobs: jobs?.length || 0,
-            totalApplications: applications?.length || 0,
-            interviewsScheduled: 0,
-            positionsFilled: 0
-          };
-        }
-        return response.json();
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-        // Return empty stats
-        return {
-          activeJobs: jobs?.length || 0,
-          totalApplications: applications?.length || 0,
-          interviewsScheduled: 0,
-          positionsFilled: 0
-        };
-      }
-    }
-  });
+  // Calculate stats from jobs data
+  const stats = React.useMemo(() => {
+    if (!jobs) return null;
+    
+    // Calculate active jobs (jobs with no status or status === 'active')
+    const activeJobs = jobs.filter(job => !job.status || job.status === 'active' || job.status === 'Active').length;
+    
+    return {
+      activeJobs,
+      totalJobs: jobs.length,
+      totalApplications: 0, // We don't have applications data yet
+      interviewsScheduled: 0,
+      positionsFilled: 0
+    };
+  }, [jobs]);
+  
+  const isLoadingStats = isLoadingJobs;
   
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
     setActiveTab(newValue);
@@ -207,7 +206,7 @@ export const EmployerDashboard: React.FC = () => {
                       {isLoadingStats ? (
                         <CircularProgress size={24} />
                       ) : (
-                        <Typography variant="h4">{stats?.activeJobs !== undefined ? stats.activeJobs : (jobs && jobs.length > 0 ? jobs.filter(job => job.status !== 'closed').length : 0)}</Typography>
+                        <Typography variant="h4">{stats?.activeJobs !== undefined ? stats.activeJobs : (jobs && jobs.length > 0 ? jobs.filter(job => !job.status || job.status === 'active' || job.status === 'Active').length : 0)}</Typography>
                       )}
                     </CardContent>
                   </Card>

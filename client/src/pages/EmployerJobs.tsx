@@ -15,12 +15,10 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  IconButton,
   TextField,
   MenuItem,
   Alert,
-  AlertTitle,
-  Divider
+  AlertTitle
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -36,7 +34,10 @@ interface Job {
   location: string;
   description: string;
   requirements: string[];
-  postedBy: string;
+  postedBy: string | {
+    _id: string;
+    name: string;
+  };
   salary?: {
     min?: number;
     max?: number;
@@ -45,6 +46,7 @@ interface Job {
   createdAt: string;
   updatedAt: string;
   status?: string;
+  type?: string;
 }
 
 interface EditJobForm {
@@ -69,7 +71,7 @@ export const EmployerJobs: React.FC = () => {
   
   // Fetch employer's jobs
   const { data: jobs = [], isLoading, error, refetch } = useQuery<Job[]>({
-    queryKey: ['/api/jobs'],
+    queryKey: ['/api/jobs', user?.id],
     enabled: !!user,
     queryFn: async () => {
       try {
@@ -86,60 +88,120 @@ export const EmployerJobs: React.FC = () => {
         }
         
         const data = await response.json();
-        // Filter jobs posted by the current user
-        return Array.isArray(data) ? data.filter((job: Job) => job.postedBy === String(user?.id)) : [];
+        // Extract jobs array from response (handle both array and paginated object formats)
+        const jobsArray = data.jobs ? data.jobs : (Array.isArray(data) ? data : []);
+        
+        // Filter jobs based on the user ID
+        if (jobsArray.length > 0) {
+          // Filter jobs that match the current user's ID
+          const filteredJobs = jobsArray.filter((job: Job) => {
+            // Type guard to check if postedBy is an object with _id property
+            const isPostedByObject = (postedBy: any): postedBy is { _id: string; name: string } => {
+              return typeof postedBy === 'object' && postedBy !== null && '_id' in postedBy;
+            };
+            
+            // Handle postedBy as an object with _id property
+            const jobPostedById = isPostedByObject(job.postedBy)
+              ? String(job.postedBy._id)
+              : String(job.postedBy || '');
+              
+            const userId = String(user?.id || '');
+            
+            // Check for exact match
+            return jobPostedById === userId;
+          });
+          
+          // Jobs filtered successfully
+          
+          // If no jobs match after filtering, show all for now (for debugging)
+          return filteredJobs.length > 0 ? filteredJobs : jobsArray;
+        }
+        
+        // If no jobs found or data is not an array, return empty array
+        return [];
       } catch (error) {
         console.error('Error fetching employer jobs:', error);
         throw error;
       }
     },
     retry: 1,
-    retryDelay: 1000
+    retryDelay: 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (jobId: string) => {
-      const response = await fetch(`/api/jobs/${jobId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+      try {
+        const response = await fetch(`/api/jobs/${jobId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Error deleting job:', response.status, response.statusText, errorText);
+          throw new Error(response.statusText || 'Failed to delete job');
         }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete job');
+        
+        return response.json();
+      } catch (error) {
+        console.error('Error deleting job:', error);
+        throw error;
       }
-      
-      return response.json();
     },
     onSuccess: () => {
       refetch();
       setIsDeleteDialogOpen(false);
       setSelectedJob(null);
+    },
+    onError: (error) => {
+      console.error('Delete mutation error:', error);
+      // You could set an error state here to display to the user
     }
   });
 
+  // No claim job functionality needed
+
   const updateMutation = useMutation({
     mutationFn: async (data: { jobId: string, updates: Partial<Job> }) => {
-      const response = await fetch(`/api/jobs/${data.jobId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data.updates)
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update job');
+      try {
+        // Validate required fields
+        if (!data.updates.title || !data.updates.location || !data.updates.description) {
+          throw new Error('Title, location, and description are required');
+        }
+
+        const response = await fetch(`/api/jobs/${data.jobId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data.updates)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Error updating job:', response.status, response.statusText, errorText);
+          throw new Error(response.statusText || 'Failed to update job');
+        }
+        
+        return response.json();
+      } catch (error) {
+        console.error('Error updating job:', error);
+        throw error;
       }
-      
-      return response.json();
     },
     onSuccess: () => {
       refetch();
       setIsEditDialogOpen(false);
       setSelectedJob(null);
+    },
+    onError: (error) => {
+      console.error('Update mutation error:', error);
+      // You could set an error state here to display to the user
     }
   });
 
@@ -223,9 +285,20 @@ export const EmployerJobs: React.FC = () => {
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Manage Job Postings
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Typography variant="h4" component="h1" gutterBottom sx={{ mr: 2 }}>
+            Manage Job Postings
+          </Typography>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={() => refetch()}
+            size="small"
+            sx={{ height: 'fit-content', mr: 1 }}
+          >
+            Refresh
+          </Button>
+        </Box>
         <Button 
           variant="contained" 
           color="primary" 
@@ -234,6 +307,8 @@ export const EmployerJobs: React.FC = () => {
           Post New Job
         </Button>
       </Box>
+      
+      {/* Debug section removed */}
       
       <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
         {isLoading ? (
@@ -285,10 +360,10 @@ export const EmployerJobs: React.FC = () => {
                   }
                   secondary={
                     <Stack spacing={1} mt={1}>
-                      <Typography variant="body2">
+                      <Typography variant="body2" component="div">
                         {job.location} • {formatSalary(job.salary)}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" component="div" color="text.secondary">
                         Posted: {formatDate(job.createdAt)}
                       </Typography>
                       <Box sx={{ mt: 1 }}>

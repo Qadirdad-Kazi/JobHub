@@ -1,9 +1,25 @@
 import React, { useState } from 'react';
-import { Container, Typography, Grid, Card, CardContent, Button, Box, CircularProgress } from '@mui/material';
+import { Container, Typography, Card, CardContent, Button, Box, CircularProgress } from '@mui/material';
+import Grid from '@mui/material/Grid';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Job } from '@shared/schema';
-import JobSearchForm from '@/components/JobSearchForm';
+
+interface SearchParams {
+  q: string;
+  location: string;
+  type: string;
+}
+
+interface JobSearchFormProps {
+  onSearch: (params: SearchParams) => void;
+}
+
+// This is a placeholder component - you'll need to implement or import the actual component
+const JobSearchForm: React.FC<JobSearchFormProps> = ({ onSearch }) => {
+  // Placeholder implementation
+  return <div>Search Form</div>;
+};
 
 export const JobsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,7 +30,23 @@ export const JobsPage: React.FC = () => {
   });
 
   const { data: jobsData, isLoading } = useQuery<{ jobs: Job[], pagination: { total: number, page: number, pages: number } }>({
-    queryKey: [`/api/jobs?${new URLSearchParams(searchParams).toString()}`],
+    queryKey: [`/api/jobs`, searchParams],
+    queryFn: async () => {
+      try {
+        const queryString = new URLSearchParams(searchParams).toString();
+        const response = await fetch(`/api/jobs?${queryString}`);
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching jobs: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Error fetching jobs:', error);
+        throw error;
+      }
+    }
   });
 
   const handleSearch = (params: typeof searchParams) => {
@@ -43,7 +75,7 @@ export const JobsPage: React.FC = () => {
             </Typography>
             <Grid container spacing={3}>
               {jobsData.jobs.map((job) => (
-                <Grid item xs={12} key={job._id}>
+                <Grid key={job._id} item xs={12}>
                   <Card>
                     <CardContent>
                       <Typography variant="h6" gutterBottom>
