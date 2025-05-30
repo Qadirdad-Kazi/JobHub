@@ -3,12 +3,12 @@ import { api } from '../lib/api';
 
 export const applicationService = {
   async getMyApplications(): Promise<Application[]> {
-    const response = await api.get('/applications/me');
+    const response = await api.get('/api/applications/me');
     return response.data;
   },
 
   async getJobApplications(jobId: string): Promise<Application[]> {
-    const response = await api.get(`/jobs/${jobId}/applications`);
+    const response = await api.get(`/api/jobs/${jobId}/applications`);
     return response.data;
   },
 
@@ -17,7 +17,7 @@ export const applicationService = {
     resumeId: string;
     coverLetter?: string;
   }): Promise<Application> {
-    const response = await api.post('/applications', data);
+    const response = await api.post('/api/applications', data);
     return response.data;
   },
 
@@ -25,14 +25,14 @@ export const applicationService = {
     status: Application['status'];
     notes?: string;
   }): Promise<Application> {
-    const response = await api.put(`/applications/${applicationId}`, data);
+    const response = await api.put(`/api/applications/${applicationId}`, data);
     return response.data;
   },
 
   async withdrawApplication(applicationId: string, data: {
     reason?: string;
   }): Promise<Application> {
-    const response = await api.post(`/applications/${applicationId}/withdraw`, data);
+    const response = await api.post(`/api/applications/${applicationId}/withdraw`, data);
     return response.data;
   }
 }; 

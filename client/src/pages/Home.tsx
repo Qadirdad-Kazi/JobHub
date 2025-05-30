@@ -7,6 +7,7 @@ import JobCard from "@/components/JobCard";
 import { useQuery } from "@tanstack/react-query";
 import { Job } from "@shared/schema";
 import { isAuthenticated, isEmployer } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 // Import MUI icons
 import WorkIcon from '@mui/icons-material/Work';
@@ -20,11 +21,11 @@ export const Home: React.FC = () => {
   const { data: featuredJobs, isLoading: isLoadingFeaturedJobs } = useQuery<Job[]>({
     queryKey: ['/api/jobs'],
     queryFn: async () => {
-      const response = await fetch('/api/jobs?limit=3&featured=true');
-      if (!response.ok) {
+      const response = await api.get('/api/jobs?limit=3&featured=true');
+      if (!response.data) {
         throw new Error('Failed to fetch featured jobs');
       }
-      return response.json();
+      return response.data;
     }
   });
 
@@ -37,11 +38,8 @@ export const Home: React.FC = () => {
     queryKey: ['/api/stats'],
     queryFn: async () => {
       try {
-        const response = await fetch('/api/stats');
-        if (response.ok) {
-          return await response.json();
-        }
-        return { totalJobs: 5000, totalCompanies: 1000, totalJobSeekers: 10000 };
+        const response = await api.get('/api/stats');
+        return response.data;
       } catch (error) {
         console.error('Error fetching stats:', error);
         // Fallback to default values if API fails

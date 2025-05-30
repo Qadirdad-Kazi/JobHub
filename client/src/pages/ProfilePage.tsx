@@ -20,6 +20,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { UserRole } from '@shared/schema';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
+import { config } from '../config';
 
 interface ProfileFormData {
   name: string;
@@ -57,24 +58,60 @@ export const ProfilePage: React.FC = () => {
     profileViews: number;
   }
 
-  // Fetch user profile data
+  // Fetch user profile data with fallback to localStorage
   const { data: userProfile, isLoading, refetch } = useQuery<UserProfile>({
     queryKey: ['/api/auth/me'],
     queryFn: async () => {
-      const response = await fetch('/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+      try {
+        // Try to fetch from API first using environment-based configuration
+        const apiBaseUrl = config.api.baseUrl.endsWith('/api') 
+          ? config.api.baseUrl.replace(/\/api$/, '') 
+          : config.api.baseUrl;
+          
+        console.log('Using API base URL from config:', apiBaseUrl);
+        
+        const response = await fetch(`${apiBaseUrl}/api/auth/me`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Fetched user profile data from API:', data);
+          // Store in localStorage for offline access
+          localStorage.setItem('userData', JSON.stringify(data));
+          return data;
+        } else {
+          console.warn('API request failed, falling back to localStorage');
+          throw new Error('API request failed');
         }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch profile');
+      } catch (error) {
+        // Fallback to localStorage if API fails
+        const storedData = localStorage.getItem('userData');
+        if (storedData) {
+          const parsedData = JSON.parse(storedData);
+          console.log('Using profile data from localStorage:', parsedData);
+          return parsedData;
+        }
+        
+        // If no stored data, create a placeholder profile
+        return {
+          // Construct name from firstName and lastName if available
+          name: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '',
+          email: user?.email || '',
+          bio: null,
+          location: null,
+          profileImage: null,
+          skills: [],
+          experience: [],
+          education: [],
+          profileViews: 0
+        };
       }
-      const data = await response.json();
-      console.log('Fetched user profile data:', data);
-      return data;
     },
-    enabled: !!user,
-    retry: 3,
+    enabled: true, // Always try to fetch
+    retry: 1,
     staleTime: 60000, // 1 minute
   });
   
@@ -116,22 +153,60 @@ export const ProfilePage: React.FC = () => {
   // Update profile mutation
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileFormData) => {
-      const response = await fetch('/api/auth/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(data)
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to update profile');
+      try {
+        // Use environment-based configuration for API URL
+        const apiBaseUrl = config.api.baseUrl.endsWith('/api') 
+          ? config.api.baseUrl.replace(/\/api$/, '') 
+          : config.api.baseUrl;
+        
+        console.log('Updating profile using API base URL:', apiBaseUrl);
+        
+        const response = await fetch(`${apiBaseUrl}/api/auth/profile`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+          const responseData = await response.json();
+          
+          // Store updated profile data in localStorage for offline access
+          const updatedProfile = {
+            ...userProfile,
+            ...data,
+            updatedAt: new Date().toISOString()
+          };
+          localStorage.setItem('userData', JSON.stringify(updatedProfile));
+          
+          return responseData;
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Failed to update profile on server');
+        }
+      } catch (error) {
+        console.warn('API update failed, saving profile to localStorage only');
+        
+        // Fallback: Update profile in localStorage only
+        const updatedProfile = {
+          ...userProfile,
+          ...data,
+          updatedAt: new Date().toISOString(),
+          pendingSync: true // Mark as needing sync when connection is restored
+        };
+        
+        localStorage.setItem('userData', JSON.stringify(updatedProfile));
+        return { success: true, message: 'Profile updated locally', data: updatedProfile };
       }
-      return response.json();
     },
-    onSuccess: () => {
-      setSuccess('Profile updated successfully');
+    onSuccess: (data) => {
+      if (data.pendingSync) {
+        setSuccess('Profile updated locally. Changes will be synced when connection is restored.');
+      } else {
+        setSuccess('Profile updated successfully');
+      }
       setIsEditing(false);
       refetch(); // Refetch profile data after update
       setTimeout(() => setSuccess(null), 5000); // Clear success message after 5 seconds

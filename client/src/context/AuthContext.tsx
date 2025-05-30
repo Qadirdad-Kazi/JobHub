@@ -11,6 +11,11 @@ interface User {
   firstName: string;
   lastName: string;
   role: UserRole;
+  name?: string;
+  phone?: string;
+  location?: string;
+  website?: string;
+  skills?: string[];
 }
 
 interface AuthContextType {
@@ -51,42 +56,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const verifyAuth = async () => {
       setIsLoading(true);
       try {
-        const token = localStorage.getItem(config.auth.tokenKey);
-        const storedUser = localStorage.getItem(config.auth.userKey);
+        // Always use direct token key for consistency
+        const token = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
         
         if (!token || !storedUser) {
           // No token or user data found
+          console.log('No token or user data found in localStorage');
           setUser(null);
           setIsLoading(false);
           return;
         }
 
         // Set user from stored data immediately to prevent flashing login screen
-        setUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+        console.log('User loaded from localStorage:', parsedUser.email);
         
         // Verify token with the server in the background
         try {
+          console.log('Verifying token with server...');
           const response = await api.get('/api/auth/me');
 
           if (response.status === 200) {
             // Token is valid, update user data from server response
             const userData = response.data;
+            console.log('Token verified successfully, user data:', userData.email);
+            
             // Update the stored user data with fresh data from server
-            localStorage.setItem(config.auth.userKey, JSON.stringify(userData));
+            localStorage.setItem('user', JSON.stringify(userData));
             setUser(userData);
           }
-          // For other error codes, keep the user logged in with stored data
         } catch (error: any) {
           if (error.response && error.response.status === 401) {
             // Only logout on explicit 401 Unauthorized
             console.log('Invalid token (401), logging out');
-            localStorage.removeItem(config.auth.tokenKey);
-            localStorage.removeItem(config.auth.userKey);
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
             setUser(null);
           } else {
-            // Network error - keep the user logged in with stored data
-            console.error('Error during token verification:', error);
-            // User is already set from stored data, so we don't need to do anything
+            // For other errors, keep the user logged in with stored data
+            console.error('Error during token verification, keeping local user data:', error);
           }
         }
       } catch (error) {
@@ -114,13 +124,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await api.post('/auth/login', { email, password });
+      console.log('Attempting login for:', email);
+      const response = await api.post('/api/auth/login', { email, password });
       const data = response.data;
       const userData: User = data.user;
       
-      // Store user data and token in localStorage using config keys
-      localStorage.setItem(config.auth.userKey, JSON.stringify(userData));
-      localStorage.setItem(config.auth.tokenKey, data.token);
+      console.log('Login successful, storing token and user data');
+      // Store user data and token directly in localStorage for consistency
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('token', data.token);
       
       setUser(userData);
       
@@ -145,14 +157,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     firstName: string;
     lastName: string;
     role: UserRole;
-    name?: string; // Add name as an optional field
+    name?: string;
   }) => {
     try {
       // Create a new object with exactly the fields the server expects
       const dataToSend = {
         email: userData.email,
         password: userData.password,
-        confirmPassword: userData.confirmPassword, // Explicitly include confirmPassword
+        confirmPassword: userData.confirmPassword,
         username: userData.username,
         firstName: userData.firstName,
         lastName: userData.lastName,
@@ -171,14 +183,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       // Use the API client for the request
-      const response = await api.post('/auth/register', dataToSend);
+      const response = await api.post('/api/auth/register', dataToSend);
       
       const data = response.data;
       const newUser: User = data.user;
       
-      // Store user data and token using config keys
-      localStorage.setItem(config.auth.userKey, JSON.stringify(newUser));
-      localStorage.setItem(config.auth.tokenKey, data.token);
+      // Store user data and token directly in localStorage for consistency
+      localStorage.setItem('user', JSON.stringify(newUser));
+      localStorage.setItem('token', data.token);
+      console.log('Registration successful, token and user data stored');
       
       setUser(newUser);
       

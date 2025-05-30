@@ -1,10 +1,54 @@
-// Removed unused React import
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import React from 'react';
+import { 
+  Card, 
+  CardContent, 
+  CardFooter, 
+  CardHeader, 
+  CardTitle 
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Resume } from "@shared/schema";
-import { formatDate } from "@/lib/utils";
 import { Download, Eye, Pencil, Trash } from "lucide-react";
+import { formatDate } from "@/lib/utils";
 import { generateResumePDF } from "@/lib/pdf";
+
+// Define the Resume interface based on MongoDB schema
+interface Resume {
+  _id: string;
+  title: string;
+  createdAt: string;
+  content: {
+    personalInfo: {
+      name: string;
+      email: string;
+      phone?: string;
+      location?: string;
+      website?: string;
+    };
+    education: Array<{
+      school: string;
+      degree: string;
+      fieldOfStudy: string;
+      startDate: string;
+      endDate?: string;
+      description?: string;
+    }>;
+    experience: Array<{
+      company: string;
+      position: string;
+      location?: string;
+      startDate: string;
+      endDate?: string;
+      description: string;
+    }>;
+    skills: string[];
+    projects?: Array<{
+      name: string;
+      description: string;
+      technologies: string[];
+      link?: string;
+    }>;
+  };
+}
 
 interface ResumeCardProps {
   resume: Resume;
@@ -16,8 +60,8 @@ interface ResumeCardProps {
 export default function ResumeCard({ resume, onEdit, onDelete, onView }: ResumeCardProps) {
   const handleDownload = async () => {
     try {
-      // Cast resume to expected type for PDF generation
-      await generateResumePDF(resume as any);
+      // Generate PDF from resume data
+      await generateResumePDF(resume);
     } catch (error) {
       console.error("Failed to generate PDF:", error);
     }

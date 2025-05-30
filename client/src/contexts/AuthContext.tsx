@@ -40,10 +40,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const token = localStorage.getItem('token');
       if (token) {
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        const response = await api.get('/auth/me');
+        const response = await api.get('/api/auth/me');
         setUser(response.data);
+        localStorage.setItem('userData', JSON.stringify(response.data));
       }
     } catch (error) {
+      console.error('Error during token verification:', error);
       localStorage.removeItem('token');
       delete api.defaults.headers.common['Authorization'];
     } finally {
@@ -52,9 +54,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (credentials: { email: string; password: string }) => {
-    const response = await api.post('/auth/login', credentials);
+    const response = await api.post('/api/auth/login', credentials);
     const { token, user } = response.data;
     localStorage.setItem('token', token);
+    localStorage.setItem('userData', JSON.stringify(user));
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     setUser(user);
 
@@ -78,9 +81,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     password: string;
     role: UserRole;
   }) => {
-    const response = await api.post('/auth/register', data);
+    const response = await api.post('/api/auth/register', data);
     const { token, user } = response.data;
     localStorage.setItem('token', token);
+    localStorage.setItem('userData', JSON.stringify(user));
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     setUser(user);
 

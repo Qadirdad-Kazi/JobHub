@@ -1,5 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import User, { IUser } from "./models/User";
 import { createServer, type Server } from "http";
 import bcrypt from "bcrypt";
@@ -259,7 +259,7 @@ export function registerRoutes(app: Express): Server {
         // Create user object that matches frontend expectations
         const transformedUser = {
           ...otherUserFields,
-          id: (_id as any).toString(),
+          id: (_id as Types.ObjectId).toString(),
           firstName,
           lastName
         };
@@ -350,7 +350,7 @@ export function registerRoutes(app: Express): Server {
       // Create user object that matches frontend expectations
       const transformedUser = {
         ...otherUserFields,
-        id: (_id as any).toString(),
+        id: (_id as Types.ObjectId).toString(),
         firstName,
         lastName
       };
@@ -371,16 +371,89 @@ export function registerRoutes(app: Express): Server {
         return res.status(401).json({ message: 'Not authenticated' });
       }
       
-      const user = await db.collection('users').findOne({ id: req.user.id });
+      // Find the user without returning the password
+      const user = await User.findById(req.user._id).select('-password');
+      
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
       
-      const { password, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+      // Transform the user object to match frontend expectations
+      const userObject = user.toObject();
+      const { password, _id, ...userData } = userObject;
+      
+      const transformedUser = {
+        ...userData,
+        id: (_id as Types.ObjectId).toString()
+      };
+      
+      res.json(transformedUser);
     } catch (error) {
-      console.error('Get user error:', error);
-      res.status(500).json({ message: 'Server error' });
+      console.error('Error fetching user profile:', error);
+      res.status(500).json({ message: 'Server error fetching user profile' });
+    }
+  });
+
+  // Update user profile
+  app.put('/api/auth/profile', authenticate, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+
+      const { name, bio, location, skills } = req.body;
+
+      // Find and update the user
+      const user = await User.findById(req.user._id);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      // Update fields if provided
+      if (name) user.name = name;
+      if (bio !== undefined) user.bio = bio;
+      if (location !== undefined) user.location = location;
+      if (skills) user.skills = skills;
+
+      user.updatedAt = new Date();
+      await user.save();
+
+      // Return updated user without password
+      const userObject = user.toObject();
+      const { password, _id, ...userData } = userObject;
+      
+      const transformedUser = {
+        ...userData,
+        id: (_id as Types.ObjectId).toString()
+      };
+
+      res.json(transformedUser);
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      res.status(500).json({ message: 'Server error updating profile' });
+    }
+  });
+
+  // Stats endpoint - should be before other routes since it's a public endpoint
+  app.get('/api/stats', async (_req: Request, res: Response) => {
+    try {
+      // Get total jobs count
+      const totalJobs = await Job.countDocuments({ status: 'active' });
+      
+      // Get total companies (unique employers)
+      const totalCompanies = await User.countDocuments({ role: UserRole.EMPLOYER });
+      
+      // Get total job seekers
+      const totalJobSeekers = await User.countDocuments({ role: UserRole.JOBSEEKER });
+      
+      res.json({
+        totalJobs,
+        totalCompanies,
+        totalJobSeekers
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+      res.status(500).json({ message: 'Failed to fetch statistics' });
     }
   });
 
@@ -675,13 +748,14 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get my applications (job seeker only)
+  // Get user's applications
   app.get('/api/applications/me', authenticate, authorizeJobSeeker, async (req: AuthRequest, res) => {
     try {
       if (!req.user) {
-        return res.status(401).json({ message: 'Not authenticated' });
+        return res.status(401).json({ message: 'User not authenticated' });
       }
-
+      
+      // Find all applications for this user with proper population
       const applications = await Application.find({ userId: req.user._id })
         .populate([
           { 
@@ -692,11 +766,11 @@ export function registerRoutes(app: Express): Server {
           { path: 'resumeId', select: 'title' }
         ])
         .sort({ appliedAt: -1 });
-
+      
       res.json(applications);
     } catch (error) {
-      console.error('Get my applications error:', error);
-      res.status(500).json({ message: 'Server error getting applications' });
+      console.error('Error fetching user applications:', error);
+      res.status(500).json({ message: 'Server error fetching applications' });
     }
   });
 
@@ -912,25 +986,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get user's applications
-  app.get('/api/applications/me', authenticate, authorizeJobSeeker, async (req: AuthRequest, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ message: 'User not authenticated' });
-      }
-      
-      // Find all applications for this user
-      const applications = await Application.find({ userId: req.user._id })
-        .populate('jobId')
-        .sort({ createdAt: -1 });
-      
-      res.json(applications);
-    } catch (error) {
-      console.error('Error fetching user applications:', error);
-      res.status(500).json({ message: 'Server error fetching applications' });
-    }
-  });
-
   // Get user's saved jobs
   app.get('/api/jobs/saved', authenticate, authorizeJobSeeker, async (req: AuthRequest, res) => {
     try {
@@ -1064,28 +1119,6 @@ export function registerRoutes(app: Express): Server {
         success: false,
         message: 'Failed to fetch resume'
       });
-    }
-  });
-
-  // Get current user profile data
-  app.get('/api/auth/me', authenticate, async (req: AuthRequest, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ message: 'User not authenticated' });
-      }
-      
-      // Find the user without returning the password
-      const user = await User.findById(req.user._id).select('-password');
-      
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-      
-      // Return the user profile
-      res.json(user);
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-      res.status(500).json({ message: 'Server error fetching user profile' });
     }
   });
 
