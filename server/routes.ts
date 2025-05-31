@@ -48,39 +48,38 @@ const loginSchema = z.object({
 });
 
 const resumeSchema = z.object({
-  userId: z.string(),
-  title: z.string(),
+  title: z.string().optional(),
   content: z.object({
     personalInfo: z.object({
-      name: z.string(),
-      email: z.string().email(),
+      name: z.string().optional(),
+      email: z.string().email().optional(),
       phone: z.string().optional(),
       location: z.string().optional(),
-      website: z.string().url().optional(),
+      website: z.string().url().optional().nullable(),
     }),
     education: z.array(z.object({
-      school: z.string(),
-      degree: z.string(),
-      fieldOfStudy: z.string(),
-      startDate: z.string().transform((str) => new Date(str)),
-      endDate: z.string().transform((str) => new Date(str)).optional(),
+      school: z.string().optional(),
+      degree: z.string().optional(),
+      fieldOfStudy: z.string().optional(),
+      startDate: z.string().optional().transform(str => str ? new Date(str) : new Date()),
+      endDate: z.string().optional().nullable().transform(str => str ? new Date(str) : null),
       description: z.string().optional(),
-    })),
+    })).optional().default([]),
     experience: z.array(z.object({
-      company: z.string(),
-      position: z.string(),
+      company: z.string().optional(),
+      position: z.string().optional(),
       location: z.string().optional(),
-      startDate: z.string().transform((str) => new Date(str)),
-      endDate: z.string().transform((str) => new Date(str)).optional(),
-      description: z.string(),
-    })),
-    skills: z.array(z.string()),
+      startDate: z.string().optional().transform(str => str ? new Date(str) : new Date()),
+      endDate: z.string().optional().nullable().transform(str => str ? new Date(str) : null),
+      description: z.string().optional(),
+    })).optional().default([]),
+    skills: z.array(z.string()).optional().default([]),
     projects: z.array(z.object({
-      name: z.string(),
-      description: z.string(),
-      technologies: z.array(z.string()),
-      link: z.string().url().optional(),
-    })).optional(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      technologies: z.array(z.string()).optional().default([]),
+      link: z.string().url().optional().nullable(),
+    })).optional().default([]),
   }),
 });
 
@@ -466,11 +465,25 @@ export function registerRoutes(app: Express): Server {
         return res.status(401).json({ message: 'Not authenticated' });
       }
       
-      // Use type assertion to handle date conversions
+      // Add current date for any missing dates
+      const now = new Date();
       const resumeData = {
         ...validatedReq.validatedBody,
         userId: req.user._id,
-      } as any; // Type assertion to bypass type checking for date fields
+        content: {
+          ...validatedReq.validatedBody.content,
+          education: validatedReq.validatedBody.content.education?.map(edu => ({
+            ...edu,
+            startDate: edu.startDate || now,
+            endDate: edu.endDate || null
+          })) || [],
+          experience: validatedReq.validatedBody.content.experience?.map(exp => ({
+            ...exp,
+            startDate: exp.startDate || now,
+            endDate: exp.endDate || null
+          })) || []
+        }
+      };
       
       const resume = new Resume(resumeData);
       await resume.save();
@@ -999,126 +1012,6 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error fetching saved jobs:', error);
       res.status(500).json({ message: 'Server error fetching saved jobs' });
-    }
-  });
-
-  // Create a new resume
-  app.post('/api/resumes', authenticate, async (req: AuthRequest, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ message: 'User not authenticated' });
-      }
-      
-      console.log('Resume data received:', req.body);
-      
-      const { personalInfo, experience, education, skills } = req.body;
-      
-      if (!personalInfo) {
-        return res.status(400).json({
-          success: false,
-          message: 'Missing required resume data'
-        });
-      }
-      
-      // Format the data to match the Resume model structure
-      const resumeData = {
-        userId: req.user._id,
-        title: `${personalInfo.firstName || ''} ${personalInfo.lastName || ''}'s Resume`,
-        content: {
-          personalInfo: {
-            name: `${personalInfo.firstName || ''} ${personalInfo.lastName || ''}`,
-            email: personalInfo.email || '',
-            phone: personalInfo.phone || '',
-            location: personalInfo.address || '',
-            website: personalInfo.website || ''
-          },
-          education: education && education.length > 0 ? education.map((edu: any) => ({
-            school: edu.school || '',
-            degree: edu.degree || '',
-            fieldOfStudy: edu.field || '',
-            startDate: edu.startDate ? new Date(edu.startDate) : new Date(),
-            endDate: edu.endDate ? new Date(edu.endDate) : undefined,
-            description: edu.description || ''
-          })) : [],
-          experience: experience && experience.length > 0 ? experience.map((exp: any) => ({
-            company: exp.company || '',
-            position: exp.position || '',
-            location: exp.location || '',
-            startDate: exp.startDate ? new Date(exp.startDate) : new Date(),
-            endDate: exp.endDate ? new Date(exp.endDate) : undefined,
-            description: exp.description || ''
-          })) : [],
-          skills: Array.isArray(skills) ? skills : 
-                 (typeof skills === 'string' ? skills.split(',').map((skill: string) => skill.trim()) : []),
-          projects: []
-        }
-      };
-      
-      console.log('Formatted resume data for DB:', resumeData);
-      
-      // Create the resume
-      const resume = new Resume(resumeData);
-      await resume.save();
-      
-      res.status(201).json({
-        success: true,
-        message: 'Resume created successfully',
-        resume
-      });
-    } catch (error) {
-      console.error('Error creating resume:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to create resume'
-      });
-    }
-  });
-  
-  // Get all resumes for the current user
-  app.get('/api/resumes', authenticate, async (req: AuthRequest, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ message: 'User not authenticated' });
-      }
-      
-      const resumes = await Resume.find({ userId: req.user._id });
-      console.log(`Found ${resumes.length} resumes for user ${req.user._id}`);
-      
-      // Return just the array of resumes to match client expectations
-      res.json(resumes);
-    } catch (error) {
-      console.error('Error fetching resumes:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to fetch resumes'
-      });
-    }
-  });
-  
-  // Get a specific resume by ID
-  app.get('/api/resumes/:id', authenticate, async (req: AuthRequest, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ message: 'User not authenticated' });
-      }
-      
-      const resume = await Resume.findOne({ _id: req.params.id, userId: req.user._id });
-      
-      if (!resume) {
-        return res.status(404).json({
-          success: false,
-          message: 'Resume not found'
-        });
-      }
-      
-      // Return just the resume object to match client expectations
-      res.json(resume);
-    } catch (error) {
-      console.error('Error fetching resume:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to fetch resume'
-      });
     }
   });
 

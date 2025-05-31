@@ -197,103 +197,86 @@ export const ResumeBuilder = (): JSX.Element => {
     setSubmitError(null);
     
     try {
-      // Looking at the server code, it expects personalInfo, education, experience, skills as direct properties
-      // Extract first and last name from the full name for the server
-      const nameParts = formData.personalInfo.name.split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
+      // Try to save to the database
+      console.log('Attempting to save resume to database...');
       
-      // Format data exactly as the server expects it in routes.ts
-      const resumeData = {
-        personalInfo: {
-          firstName,
-          lastName,
-          email: formData.personalInfo.email || '',
-          phone: formData.personalInfo.phone || '',
-          address: formData.personalInfo.location || '', // Server expects 'address' not 'location'
-          website: formData.personalInfo.website || ''
-        },
-        education: formData.education.map(edu => ({
-          school: edu.school || '',
-          degree: edu.degree || '',
-          field: edu.fieldOfStudy || '', // Server expects 'field' not 'fieldOfStudy'
-          startDate: edu.startDate || new Date().toISOString().split('T')[0],
-          endDate: edu.endDate || '',
-          description: edu.description || ''
-        })),
-        experience: formData.experience.map(exp => ({
-          company: exp.company || '',
-          position: exp.position || '',
-          location: exp.location || '',
-          startDate: exp.startDate || new Date().toISOString().split('T')[0],
-          endDate: exp.endDate || '',
-          description: exp.description || ''
-        })),
-        skills: formData.skills
+      // Log the form data for debugging
+      console.log('Form Data:', {
+        personalInfo: formData.personalInfo,
+        education: formData.education,
+        experience: formData.experience,
+        skills: formData.skills,
+        projects: formData.projects
+      });
+
+      // Prepare the request data - only include non-empty values
+      const requestData = {
+        title: formData.personalInfo.name ? `${formData.personalInfo.name}'s Resume` : 'Draft Resume',
+        content: {
+          personalInfo: {
+            name: formData.personalInfo.name?.trim() || undefined,
+            email: formData.personalInfo.email?.trim() || undefined,
+            phone: formData.personalInfo.phone?.trim() || undefined,
+            location: formData.personalInfo.location?.trim() || undefined,
+            // Only include website if it's a valid URL
+            website: formData.personalInfo.website?.trim() ? 
+              (formData.personalInfo.website.startsWith('http') ? 
+                formData.personalInfo.website.trim() : 
+                `https://${formData.personalInfo.website.trim()}`
+              ) : null
+          },
+          education: formData.education
+            .filter(edu => edu.school || edu.degree || edu.fieldOfStudy)
+            .map(edu => ({
+              school: edu.school?.trim() || undefined,
+              degree: edu.degree?.trim() || undefined,
+              fieldOfStudy: edu.fieldOfStudy?.trim() || undefined,
+              startDate: edu.startDate || new Date().toISOString().split('T')[0],
+              endDate: edu.endDate || null,
+              description: edu.description?.trim() || undefined
+            })),
+          experience: formData.experience
+            .filter(exp => exp.company || exp.position || exp.description)
+            .map(exp => ({
+              company: exp.company?.trim() || undefined,
+              position: exp.position?.trim() || undefined,
+              location: exp.location?.trim() || undefined,
+              startDate: exp.startDate || new Date().toISOString().split('T')[0],
+              endDate: exp.endDate || null,
+              description: exp.description?.trim() || undefined
+            })),
+          skills: formData.skills
+            .map(skill => skill.trim())
+            .filter(skill => skill.length > 0),
+          projects: formData.projects
+            .filter(project => project.name || project.description || project.technologies.length > 0)
+            .map(project => ({
+              name: project.name?.trim() || undefined,
+              description: project.description?.trim() || undefined,
+              technologies: project.technologies
+                .map(tech => tech.trim())
+                .filter(tech => tech.length > 0),
+              link: project.link?.trim() ? 
+                (project.link.startsWith('http') ? 
+                  project.link.trim() : 
+                  `https://${project.link.trim()}`
+                ) : null
+            }))
+        }
       };
+
+      // Log the final request data
+      console.log('Request Data:', JSON.stringify(requestData, null, 2));
+
+      const response = await api.post('/api/resumes', requestData);
       
-      // Add fallback for empty arrays
-      if (resumeData.education.length === 0) {
-        resumeData.education = [{
-          school: 'School Name',
-          degree: 'Degree',
-          field: 'Field of Study',
-          startDate: new Date().toISOString().split('T')[0],
-          endDate: '',
-          description: ''
-        }];
-      }
+      console.log('Resume created successfully:', response.data);
       
-      if (resumeData.experience.length === 0) {
-        resumeData.experience = [{
-          company: 'Company Name',
-          position: 'Position',
-          location: '',
-          startDate: new Date().toISOString().split('T')[0],
-          endDate: '',
-          description: 'Job description'
-        }];
-      }
+      // Show success message
+      setSnackbarMessage('Resume draft saved successfully! You can update it later.');
+      setSnackbarOpen(true);
       
-      // Ensure skills is never empty
-      if (!resumeData.skills || resumeData.skills.length === 0) {
-        resumeData.skills = ['Skill 1'];
-      }
-      
-      console.log('Formatted resume data for submission:', resumeData);
-      
-      try {
-        // Try to save to the database first
-        console.log('Attempting to save resume to database...');
-        const response = await api.post('/resumes', resumeData);
-        console.log('Resume saved to database:', response.data);
-        
-        // Show success message for database save
-        setSnackbarMessage('Resume created successfully and saved to database!');
-        setSnackbarOpen(true);
-      } catch (apiError) {
-        console.error('API error, using localStorage fallback:', apiError);
-        
-        // Fallback to localStorage if API fails
-        // Generate a unique ID for the resume
-        const resumeId = `resume_${Date.now()}`;
-        const resumeWithId = { ...resumeData, id: resumeId, createdAt: new Date().toISOString() };
-        
-        // Get existing resumes from localStorage or initialize empty array
-        const existingResumes = JSON.parse(localStorage.getItem('userResumes') || '[]');
-        
-        // Add new resume to array
-        existingResumes.push(resumeWithId);
-        
-        // Save updated array back to localStorage
-        localStorage.setItem('userResumes', JSON.stringify(existingResumes));
-        
-        // Show success message for localStorage fallback
-        setSnackbarMessage('Resume created successfully and saved locally!');
-        setSnackbarOpen(true);
-      }
-      
-      // Move to the completion step regardless of where it was saved
+      // Move to the completion step
       setActiveStep(prevStep => prevStep + 1);
       
       // Redirect to profile page after a short delay
@@ -301,27 +284,39 @@ export const ResumeBuilder = (): JSX.Element => {
         navigate('/profile');
       }, 3000);
     } catch (error: any) {
-      console.error('Error saving resume to database:', error);
+      console.error('Error saving resume:', error);
       
       // Log detailed error information
       if (error.response) {
-        console.error('Error response data:', error.response.data);
-        console.error('Error response status:', error.response.status);
-        console.error('Error response headers:', error.response.headers);
+        console.error('Server Response:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data
+        });
         
-        // Log the validation errors in detail if they exist
+        // Log validation errors in detail if they exist
         if (error.response.data?.errors) {
-          console.error('Validation errors:', JSON.stringify(error.response.data.errors, null, 2));
+          console.error('Validation Errors:', error.response.data.errors.map((err: any) => ({
+            field: err.path?.join('.'),
+            message: err.message,
+            code: err.code
+          })));
         }
         
         // Set a more specific error message based on the response
         const serverErrorMessage = error.response.data?.message || 'Unknown server error';
         setSubmitError(`Failed to save resume: ${serverErrorMessage}`);
       } else if (error.request) {
-        console.error('Error request:', error.request);
-        setSubmitError('Request was made but no response was received from the server.');
+        console.error('Request Error:', {
+          message: 'No response received from server',
+          request: error.request
+        });
+        setSubmitError('Failed to connect to server. Please try again.');
       } else {
-        console.error('Error message:', error.message);
+        console.error('Error Details:', {
+          message: error.message,
+          stack: error.stack
+        });
         setSubmitError(`Error: ${error.message}`);
       }
     } finally {
