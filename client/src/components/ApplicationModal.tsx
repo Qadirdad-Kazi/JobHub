@@ -2,26 +2,62 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { getLocalUser } from "@/lib/utils";
 import { Resume as BaseResume } from "@shared/schema";
 import { useNavigate } from "react-router-dom";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2 } from "lucide-react";
 
 // Extended Resume interface to include id property for the component
-interface ResumeWithId extends BaseResume {
-  id: string;
-  _id?: string;
+interface ResumeWithId {
+  _id: string;
+  userId: string;
+  title?: string;
+  content: {
+    personalInfo: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      location?: string;
+      website?: string | null;
+    };
+    education: Array<{
+      school?: string;
+      degree?: string;
+      fieldOfStudy?: string;
+      startDate?: string;
+      endDate?: string | null;
+      description?: string;
+    }>;
+    experience: Array<{
+      company?: string;
+      position?: string;
+      location?: string;
+      startDate?: string;
+      endDate?: string | null;
+      description?: string;
+    }>;
+    skills: string[];
+    projects?: Array<{
+      name?: string;
+      description?: string;
+      technologies?: string[];
+      link?: string | null;
+    }>;
+  };
+  createdAt: string;
+  updatedAt: string;
 }
 
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -31,16 +67,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Skeleton } from "@/components/ui/skeleton";
 
 interface ApplicationModalProps {
   isOpen: boolean;
@@ -55,6 +81,17 @@ const applicationSchema = z.object({
 
 type ApplicationFormValues = z.infer<typeof applicationSchema>;
 
+interface ApplicationResponse {
+  _id: string;
+  jobId: string;
+  userId: string;
+  resumeId: string;
+  status: string;
+  coverLetter?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function ApplicationModal({
   isOpen,
   onClose,
@@ -64,95 +101,103 @@ export default function ApplicationModal({
   const navigate = useNavigate();
   const [submitted, setSubmitted] = useState(false);
   const user = getLocalUser();
-  const [isLoadingResumes, setIsLoadingResumes] = useState(true);
-  const [allResumes, setAllResumes] = useState<ResumeWithId[]>([]);
-
-  const form = useForm<ApplicationFormValues>({
-    resolver: zodResolver(applicationSchema),
-    defaultValues: {
-      resumeId: "",
-      coverLetter: "",
-    },
-  });
+  const [selectedResumeId, setSelectedResumeId] = useState<string>("");
+  const [coverLetter, setCoverLetter] = useState<string>("");
+  const queryClient = useQueryClient();
 
   // Fetch resumes from API
-  const { data: apiResumes } = useQuery<any[]>({  // Using any[] temporarily to handle the API response
+  const { data: resumes, isLoading: isLoadingResumes } = useQuery<ResumeWithId[]>({
     queryKey: ["/api/resumes"],
     enabled: isOpen && !!user,
-    retry: 2
+    retry: 2,
+    select: (data) => data.map(resume => ({
+      ...resume,
+      id: resume._id || resume.id || ''
+    }))
   });
 
-  // No longer using localStorage for resumes
-
-  // No longer syncing localStorage resumes with database
-
-  // Update resumes when API data changes or modal opens
+  // Reset form state when modal closes
   useEffect(() => {
-    if (isOpen) {
-      setIsLoadingResumes(true);
-      
-      if (apiResumes && Array.isArray(apiResumes)) {
-        // Use API resumes - map them to include id property
-        console.log('Using API resumes:', apiResumes);
-        const formattedResumes = apiResumes.map(resume => ({
-          ...resume,
-          id: resume._id || resume.id || ''
-        }));
-        setAllResumes(formattedResumes);
-      } else {
-        // No resumes found
-        setAllResumes([]);
+    if (!isOpen) {
+      setSelectedResumeId("");
+      setCoverLetter("");
+      setSubmitted(false);
+    }
+  }, [isOpen]);
+
+  // Create application mutation
+  const { mutate: submitApplication, isPending: isSubmitting } = useMutation({
+    mutationFn: async () => {
+      if (!selectedResumeId) {
+        throw new Error('Please select a resume');
       }
       
-      setIsLoadingResumes(false);
-    }
-  }, [isOpen, apiResumes, user]);
-  
-  // Use the API resumes for the form
-  const resumes = allResumes;
-
-  // Mutation to submit the application
-  const applicationMutation = useMutation({
-    mutationFn: (data: ApplicationFormValues) => {
-      return apiRequest("POST", "/api/applications", {
+      const response = await api.post("/api/applications", {
         jobId,
         userId: user?.id,
-        resumeId: data.resumeId, // Use the string ID directly for MongoDB ObjectId
-        coverLetter: data.coverLetter,
+        resumeId: selectedResumeId,
+        coverLetter: coverLetter.trim() || undefined
       });
+      
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/applications"] });
       setSubmitted(true);
       toast({
-        title: "Application submitted",
-        description: "Your application has been successfully submitted.",
+        title: "Success!",
+        description: "Your application has been submitted successfully.",
       });
+      onClose();
+      setSelectedResumeId("");
+      setCoverLetter("");
     },
-    onError: (error) => {
-      toast({
-        title: "Application failed",
-        description: error instanceof Error ? error.message : "Failed to submit your application. Please try again.",
-        variant: "destructive",
-      });
-    },
+    onError: (error: any) => {
+      console.error('Application submission error:', error);
+      
+      // Handle different error cases
+      if (error.response?.data?.message) {
+        if (error.response.data.message.includes('already applied')) {
+          toast({
+            title: "Already Applied",
+            description: "You have already submitted an application for this job.",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: error.response.data.message,
+            variant: "destructive"
+          });
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to submit application. Please try again.",
+          variant: "destructive"
+        });
+      }
+    }
   });
 
-  useEffect(() => {
-    if (!isOpen) {
-      // Reset form and state when modal closes
-      form.reset();
-      setSubmitted(false);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedResumeId) {
+      toast({
+        title: "Error",
+        description: "Please select a resume to apply with.",
+        variant: "destructive"
+      });
+      return;
     }
-  }, [isOpen, form]);
-
-  const onSubmit = (data: ApplicationFormValues) => {
-    applicationMutation.mutate(data);
+    
+    submitApplication();
   };
 
   const createNewResume = () => {
     onClose();
-    window.location.href = "/resume-builder";
+    navigate("/resume-builder");
   };
 
   if (!user) {
@@ -161,151 +206,73 @@ export default function ApplicationModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        {submitted ? (
-          <>
-            <DialogHeader>
-              <DialogTitle>Application Submitted</DialogTitle>
-              <DialogDescription>
-                Your application has been successfully submitted.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="my-8 text-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-16 w-16 mx-auto text-green-500 mb-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <p className="text-gray-700 mb-2">
-                Thank you for applying! The employer will review your application.
-              </p>
-              <p className="text-gray-500 text-sm">
-                You can track the status of your application in your dashboard.
-              </p>
-            </div>
-            <DialogFooter>
-              <Button onClick={onClose}>Close</Button>
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  onClose();
-                  window.location.href = "/jobseeker/dashboard";
-                }}
-              >
-                View Application
-              </Button>
-            </DialogFooter>
-          </>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>Apply for this Job</DialogTitle>
-              <DialogDescription>
-                Submit your resume and cover letter to apply for this position.
-              </DialogDescription>
-            </DialogHeader>
-            
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Submit Application</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Select Resume</label>
             {isLoadingResumes ? (
-              <div className="py-4 text-center">
-                <Skeleton className="h-8 w-full mb-2" />
-                <Skeleton className="h-8 w-full" />
-              </div>
-            ) : resumes.length === 0 ? (
-              <div className="py-6 text-center">
-                <p className="text-amber-500">
-                  You don't have any resumes yet. Please create a resume first.
-                </p>
-                <Button
-                  className="mt-4"
-                  onClick={() => navigate("/resume-builder")}
-                >
-                  Create Resume
-                </Button>
+              <div className="flex items-center justify-center p-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
               </div>
             ) : resumes && resumes.length > 0 ? (
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-4">
-                  <FormField
-                    control={form.control}
-                    name="resumeId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Select Resume</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select a resume" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {resumes.map((resume) => (
-                              <SelectItem key={resume.id} value={resume.id.toString()}>
-                                {resume.title || `Resume for ${resume.content?.personalInfo?.name || 'Unknown'}`}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="coverLetter"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Cover Letter (Optional)</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Explain why you are a good fit for this position..."
-                            className="resize-y min-h-[120px]"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <DialogFooter>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={onClose}
-                      className="mr-2"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={applicationMutation.isPending}
-                    >
-                      {applicationMutation.isPending ? "Submitting..." : "Submit Application"}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </Form>
+              <Select value={selectedResumeId} onValueChange={setSelectedResumeId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a resume" />
+                </SelectTrigger>
+                <SelectContent>
+                  {resumes.map((resume) => (
+                    <SelectItem key={resume._id} value={resume._id}>
+                      {resume.title || `Resume ${new Date(resume.createdAt).toLocaleDateString()}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             ) : (
-              <div className="py-6 text-center">
-                <p className="mb-4">You don't have any resumes yet.</p>
-                <Button onClick={createNewResume}>Create a Resume</Button>
+              <div className="text-center py-4">
+                <p className="text-sm text-gray-500">No resumes found.</p>
+                <Button
+                  type="button"
+                  variant="link"
+                  onClick={createNewResume}
+                >
+                  Create a Resume
+                </Button>
               </div>
             )}
-          </>
-        )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Cover Letter (Optional)</label>
+            <Textarea
+              value={coverLetter}
+              onChange={(e) => setCoverLetter(e.target.value)}
+              placeholder="Write a cover letter..."
+              className="h-32"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button 
+              type="submit" 
+              disabled={isSubmitting || !selectedResumeId}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Application'
+              )}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

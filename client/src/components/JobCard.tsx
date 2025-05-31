@@ -1,4 +1,4 @@
-import { Link } from "wouter";
+import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,70 +11,48 @@ interface JobCardProps {
 }
 
 export default function JobCard({ job }: JobCardProps) {
-  const {
-    id,
-    title,
-    company,
-    location,
-    type,
-    salary,
-    description,
-    tags,
-    createdAt,
-  } = job;
-
   return (
-    <Card className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-      <CardContent className="p-6">
-        <div className="flex items-center mb-4">
-          <div className="bg-gray-100 rounded-md h-12 w-12 flex items-center justify-center text-gray-500 mr-4">
-            <Building className="h-6 w-6" />
-          </div>
+    <Card className="h-full flex flex-col">
+      <CardContent className="p-6 flex flex-col h-full">
+        <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-            <p className="text-gray-600">{company}</p>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              {job.title}
+            </h3>
+            <div className="flex items-center text-gray-600">
+              <Building className="h-4 w-4 mr-1" />
+              <span>{job.company}</span>
+            </div>
           </div>
-        </div>
-
-        <div className="mb-4">
-          <div className="flex items-center text-gray-500 text-sm mb-2">
-            <MapPin className="h-4 w-4 mr-2" />
-            <span>{location}</span>
-          </div>
-          <div className="flex items-center text-gray-500 text-sm">
-            <DollarSign className="h-4 w-4 mr-2" />
-            <span>{formatSalary(salary)}</span>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2 mb-4">
-          <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
-            {type}
+          <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+            {job.type}
           </Badge>
-          {tags && Array.isArray(tags) && tags.slice(0, 2).map((tag, index) => (
-            <Badge key={index} variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
-              {tag}
-            </Badge>
-          ))}
-          {tags && Array.isArray(tags) && tags.length > 2 && (
-            <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
-              +{tags.length - 2} more
-            </Badge>
-          )}
         </div>
 
-        <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-          {truncateText(description, 150)}
-        </p>
+        <div className="space-y-3 mb-6 flex-grow">
+          <div className="flex items-center text-gray-600">
+            <MapPin className="h-4 w-4 mr-1" />
+            <span>{job.location}</span>
+          </div>
+          {job.salary && (
+            <div className="flex items-center text-gray-600">
+              <DollarSign className="h-4 w-4 mr-1" />
+              <span>
+                {formatSalary(`${job.salary.min}-${job.salary.max} ${job.salary.currency}`)}
+              </span>
+            </div>
+          )}
+          <p className="text-gray-600">
+            {truncateText(job.description, 150)}
+          </p>
+        </div>
 
-        <div className="flex justify-between items-center">
-          <span className="text-xs text-gray-500">
-            Posted {timeSince(createdAt)}
+        <div className="flex justify-between items-center mt-auto pt-4 border-t border-gray-100">
+          <span className="text-sm text-gray-500">
+            Posted {job.createdAt ? timeSince(new Date(job.createdAt)) : 'recently'} ago
           </span>
-          <Link href={`/jobs/${id}`}>
-            <Button variant="link" className="text-primary hover:text-primary/90 p-0">
-              View Job
-            </Button>
+          <Link to={`/jobs/${job._id}`}>
+            <Button variant="outline">View Details</Button>
           </Link>
         </div>
       </CardContent>

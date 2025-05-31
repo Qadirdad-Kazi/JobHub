@@ -4,7 +4,7 @@ import User, { IUser } from "./models/User";
 import { createServer, type Server } from "http";
 import bcrypt from "bcrypt";
 import { z } from "zod";
-import { UserRole } from "@shared/schema";
+import { UserRole, ApplicationStatus } from "@shared/schema";
 import { authenticate, authorizeEmployer, authorizeJobSeeker, generateToken, AuthRequest } from './middleware/auth';
 import { db } from './db';
 import Resume from './models/Resume';
@@ -495,6 +495,55 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Update existing resume
+  app.put('/api/resumes/:id', authenticate, authorizeJobSeeker, validateBody(resumeSchema as any), async (req: AuthRequest, res) => {
+    const validatedReq = req as ValidatedRequest<z.infer<typeof resumeSchema>>;
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+
+      // Find the resume and verify ownership
+      const resume = await Resume.findOne({
+        _id: req.params.id,
+        userId: req.user._id
+      });
+
+      if (!resume) {
+        return res.status(404).json({ message: 'Resume not found or unauthorized' });
+      }
+
+      // Add current date for any missing dates
+      const now = new Date();
+      const resumeData = {
+        ...validatedReq.validatedBody,
+        userId: req.user._id,
+        content: {
+          ...validatedReq.validatedBody.content,
+          education: validatedReq.validatedBody.content.education?.map(edu => ({
+            ...edu,
+            startDate: edu.startDate || now,
+            endDate: edu.endDate || null
+          })) || [],
+          experience: validatedReq.validatedBody.content.experience?.map(exp => ({
+            ...exp,
+            startDate: exp.startDate || now,
+            endDate: exp.endDate || null
+          })) || []
+        }
+      };
+
+      // Update the resume
+      Object.assign(resume, resumeData);
+      await resume.save();
+
+      res.json(resume);
+    } catch (error) {
+      console.error('Update resume error:', error);
+      res.status(500).json({ message: 'Server error updating resume' });
+    }
+  });
+
   app.get('/api/resumes', authenticate, authorizeJobSeeker, async (req: AuthRequest, res) => {
     try {
       if (!req.user) {
@@ -534,6 +583,33 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Get resume error:', error);
       res.status(500).json({ message: 'Server error getting resume' });
+    }
+  });
+
+  // Add delete resume endpoint
+  app.delete('/api/resumes/:id', authenticate, authorizeJobSeeker, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+
+      // Find and verify resume ownership
+      const resume = await Resume.findOne({
+        _id: req.params.id,
+        userId: req.user._id
+      });
+
+      if (!resume) {
+        return res.status(404).json({ message: 'Resume not found or unauthorized' });
+      }
+
+      // Delete the resume
+      await Resume.findByIdAndDelete(req.params.id);
+
+      res.json({ message: 'Resume deleted successfully' });
+    } catch (error) {
+      console.error('Delete resume error:', error);
+      res.status(500).json({ message: 'Server error deleting resume' });
     }
   });
 
@@ -603,12 +679,20 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'Invalid job ID format' });
       }
       
-      const job = await Job.findById(id)
-        .populate('postedBy', 'name company');
+      // Find job and populate necessary fields
+      const job = await Job.findOne({ _id: id })
+        .populate({
+          path: 'postedBy',
+          select: 'name company email'
+        });
       
       if (!job) {
         return res.status(404).json({ message: 'Job not found' });
       }
+
+      // Increment view count
+      job.viewCount = (job.viewCount || 0) + 1;
+      await job.save();
       
       res.json(job);
     } catch (error) {
@@ -677,6 +761,20 @@ export function registerRoutes(app: Express): Server {
       const validatedBody = (req as ValidatedRequest<z.infer<typeof createApplicationSchema>>).validatedBody;
       const { jobId, resumeId, coverLetter } = validatedBody;
 
+      // Check for existing application
+      const existingApplication = await Application.findOne({
+        jobId,
+        userId: req.user._id,
+        status: { $nin: ['withdrawn'] }
+      });
+
+      if (existingApplication) {
+        return res.status(400).json({ 
+          message: 'You have already applied to this job',
+          applicationId: existingApplication._id
+        });
+      }
+
       // Verify job exists and is active
       const job = await Job.findOne({ _id: jobId, status: 'active' })
         .populate('postedBy', 'name email company');
@@ -702,35 +800,59 @@ export function registerRoutes(app: Express): Server {
         userId: req.user._id,
         resumeId,
         coverLetter,
+        status: 'pending',
         appliedAt: new Date(),
         updatedAt: new Date()
       });
 
       await application.save();
 
-      // Send email notification to employer
-      await emailService.sendNewApplicationNotification(
-        (job.postedBy as any).email,
-        {
-          employerName: (job.postedBy as any).name,
-          applicantName: applicant.name,
-          jobTitle: job.title
-        }
-      );
+      // Send email notification to employer (non-blocking)
+      try {
+        await emailService.sendNewApplicationNotification(
+          (job.postedBy as any).email,
+          {
+            employerName: (job.postedBy as any).name,
+            applicantName: applicant.name,
+            jobTitle: job.title
+          }
+        );
+      } catch (emailError) {
+        console.warn('Failed to send application notification email:', emailError);
+        // Continue with the response even if email fails
+      }
 
       // Populate response with job and resume details
       await application.populate([
-        { path: 'jobId', select: 'title company' },
+        { path: 'jobId', select: 'title company location type salary status' },
         { path: 'resumeId', select: 'title' }
       ]);
 
       res.status(201).json(application);
     } catch (error: unknown) {
-      if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
-        return res.status(400).json({ message: 'You have already applied to this job' });
-      }
       console.error('Create application error:', error);
-      res.status(500).json({ message: 'Server error creating application' });
+      
+      // Handle specific error cases
+      if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
+        return res.status(400).json({ 
+          message: 'You have already applied to this job',
+          error: 'DuplicateApplication'
+        });
+      }
+
+      // Handle validation errors
+      if (error && typeof error === 'object' && 'name' in error && error.name === 'ValidationError') {
+        return res.status(400).json({ 
+          message: 'Invalid application data',
+          error: 'ValidationError',
+          details: error
+        });
+      }
+
+      res.status(500).json({ 
+        message: 'Server error creating application',
+        error: 'InternalServerError'
+      });
     }
   });
 
@@ -765,25 +887,60 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/applications/me', authenticate, authorizeJobSeeker, async (req: AuthRequest, res) => {
     try {
       if (!req.user) {
-        return res.status(401).json({ message: 'User not authenticated' });
+        return res.status(401).json({ message: 'Not authenticated' });
       }
       
-      // Find all applications for this user with proper population
       const applications = await Application.find({ userId: req.user._id })
-        .populate([
-          { 
-            path: 'jobId',
-            select: 'title company location type salary status',
-            populate: { path: 'postedBy', select: 'name company' }
-          },
-          { path: 'resumeId', select: 'title' }
-        ])
-        .sort({ appliedAt: -1 });
+        .populate({
+          path: 'jobId',
+          select: 'title company location type status salary postedBy',
+          populate: { path: 'postedBy', select: 'name company' }
+        })
+        .sort({ createdAt: -1 });
       
-      res.json(applications);
+      // Filter out applications with invalid/deleted jobs
+      const validApplications = applications.filter(app => app.jobId);
+      
+      res.json(validApplications);
     } catch (error) {
-      console.error('Error fetching user applications:', error);
-      res.status(500).json({ message: 'Server error fetching applications' });
+      console.error('Get applications error:', error);
+      res.status(500).json({ message: 'Server error getting applications' });
+    }
+  });
+
+  // Get applications for employer's jobs
+  app.get('/api/employer/applications', authenticate, authorizeEmployer, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+
+      // First, get all jobs posted by the employer
+      const employerJobs = await Job.find({ postedBy: req.user._id });
+      const jobIds = employerJobs.map(job => job._id);
+
+      // Then, get all applications for these jobs
+      const applications = await Application.find({ jobId: { $in: jobIds } })
+        .populate([
+          {
+            path: 'jobId',
+            select: 'title company location type status postedBy',
+            match: { postedBy: req.user._id }
+          },
+          {
+            path: 'userId',
+            select: 'name email bio location skills'
+          }
+        ])
+        .sort({ createdAt: -1 });
+
+      // Filter out any applications where jobId didn't match (in case of stale data)
+      const validApplications = applications.filter(app => app.jobId);
+
+      res.json(validApplications);
+    } catch (error) {
+      console.error('Get employer applications error:', error);
+      res.status(500).json({ message: 'Server error getting employer applications' });
     }
   });
 
@@ -1087,6 +1244,81 @@ export function registerRoutes(app: Express): Server {
         success: false,
         message: 'Failed to track job view'
       });
+    }
+  });
+
+  // Delete application (job seeker only)
+  app.delete('/api/applications/:id', authenticate, authorizeJobSeeker, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+
+      // Find application and verify ownership
+      const application = await Application.findOne({
+        _id: req.params.id,
+        userId: req.user._id
+      });
+
+      if (!application) {
+        return res.status(404).json({ message: 'Application not found or unauthorized' });
+      }
+
+      // Check if application can be deleted (e.g., not already accepted)
+      if (application.status === ApplicationStatus.HIRED) {
+        return res.status(400).json({ 
+          message: 'Cannot delete a hired application'
+        });
+      }
+
+      await Application.findByIdAndDelete(req.params.id);
+      res.json({ message: 'Application deleted successfully' });
+    } catch (error) {
+      console.error('Delete application error:', error);
+      res.status(500).json({ message: 'Server error deleting application' });
+    }
+  });
+
+  // Edit application (job seeker only)
+  app.put('/api/applications/:id/edit', authenticate, authorizeJobSeeker, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+
+      const { coverLetter, notes } = req.body;
+
+      // Find application and verify ownership
+      const application = await Application.findOne({
+        _id: req.params.id,
+        userId: req.user._id
+      }).populate([
+        { path: 'jobId', select: 'title company location type status' },
+        { path: 'userId', select: 'name email' }
+      ]);
+
+      if (!application) {
+        return res.status(404).json({ message: 'Application not found or unauthorized' });
+      }
+
+      // Check if application can be edited (e.g., not withdrawn or rejected)
+      if (application.status === ApplicationStatus.WITHDRAWN || application.status === ApplicationStatus.REJECTED) {
+        return res.status(400).json({ 
+          message: `Cannot edit a ${application.status.toLowerCase()} application`
+        });
+      }
+
+      // Update fields
+      if (coverLetter !== undefined) application.coverLetter = coverLetter;
+      if (notes !== undefined) application.notes = notes;
+      application.updatedAt = new Date();
+
+      await application.save();
+
+      res.json(application);
+    } catch (error) {
+      console.error('Update application error:', error);
+      res.status(500).json({ message: 'Server error updating application' });
     }
   });
 

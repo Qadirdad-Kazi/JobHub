@@ -34,5 +34,17 @@ export const applicationService = {
   }): Promise<Application> {
     const response = await api.post(`/api/applications/${applicationId}/withdraw`, data);
     return response.data;
+  },
+
+  async deleteApplication(applicationId: string): Promise<void> {
+    await api.delete(`/api/applications/${applicationId}`);
+  },
+
+  async updateApplication(applicationId: string, data: {
+    coverLetter?: string;
+    notes?: string;
+  }): Promise<Application> {
+    const response = await api.put(`/api/applications/${applicationId}/edit`, data);
+    return response.data;
   }
 }; 

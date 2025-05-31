@@ -312,99 +312,90 @@ export const EmployerJobs: React.FC = () => {
       
       <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
         {isLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+          <Box display="flex" justifyContent="center" p={3}>
             <CircularProgress />
           </Box>
         ) : error ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <Alert severity="error" sx={{ mb: 2 }}>
-              <AlertTitle>Error</AlertTitle>
-              Failed to load job postings
-            </Alert>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              {error instanceof Error ? error.message : 'Please try again later'}
+          <Alert severity="error">
+            <AlertTitle>Error</AlertTitle>
+            Failed to load jobs. Please try again.
+          </Alert>
+        ) : jobs.length === 0 ? (
+          <Box textAlign="center" py={3}>
+            <Typography variant="body1">
+              No jobs posted yet
             </Typography>
-            <Button 
-              variant="outlined" 
-              onClick={() => refetch()}
-              startIcon={<RefreshIcon />}
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => navigate('/post-job')}
+              sx={{ mt: 2 }}
             >
-              Retry
+              Post Your First Job
             </Button>
           </Box>
-        ) : jobs.length > 0 ? (
+        ) : (
           <List>
             {jobs.map((job) => (
-              <ListItem 
-                key={job._id} 
-                alignItems="flex-start"
-                sx={{ 
-                  mb: 2, 
-                  border: '1px solid #e0e0e0', 
-                  borderRadius: 1,
-                  '&:hover': { backgroundColor: '#f5f5f5' }
+              <ListItem
+                key={job._id}
+                sx={{
+                  mb: 2,
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  alignItems: { xs: 'flex-start', sm: 'center' }
                 }}
               >
-                <ListItemText
-                  primary={
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="h6" component="div">
-                        {job.title}
-                      </Typography>
-                      <Chip 
-                        label={job.status || 'Active'} 
-                        color={getStatusChipColor(job.status)}
-                        size="small"
-                      />
-                    </Box>
-                  }
-                  secondary={
-                    <Stack spacing={1} mt={1}>
-                      <Typography variant="body2" component="div">
-                        {job.location} • {formatSalary(job.salary)}
-                      </Typography>
-                      <Typography variant="body2" component="div" color="text.secondary">
-                        Posted: {formatDate(job.createdAt)}
-                      </Typography>
-                      <Box sx={{ mt: 1 }}>
-                        <Button
-                          size="small"
-                          startIcon={<EditIcon />}
-                          onClick={() => handleEdit(job)}
-                          sx={{ mr: 1 }}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          size="small"
-                          color="error"
-                          startIcon={<DeleteIcon />}
-                          onClick={() => handleDelete(job)}
-                        >
-                          Delete
-                        </Button>
-                      </Box>
-                    </Stack>
-                  }
-                />
+                <Box flex={1}>
+                  <Typography variant="h6" component="div">
+                    {job.title}
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" component="div">
+                    Location: {job.location}
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" component="div">
+                    Posted: {formatDate(job.createdAt)}
+                  </Typography>
+                  {job.salary && (
+                    <Typography variant="body2" color="textSecondary" component="div">
+                      Salary: {formatSalary(job.salary)}
+                    </Typography>
+                  )}
+                  <Box mt={1}>
+                    <Chip
+                      label={job.status || 'Active'}
+                      color={getStatusChipColor(job.status)}
+                      size="small"
+                      sx={{ mr: 1 }}
+                    />
+                    <Chip
+                      label={job.type || 'Full-time'}
+                      variant="outlined"
+                      size="small"
+                    />
+                  </Box>
+                </Box>
+                <Stack direction="row" spacing={1} mt={{ xs: 2, sm: 0 }}>
+                  <Button
+                    startIcon={<EditIcon />}
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handleEdit(job)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    startIcon={<DeleteIcon />}
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    onClick={() => handleDelete(job)}
+                  >
+                    Delete
+                  </Button>
+                </Stack>
               </ListItem>
             ))}
           </List>
-        ) : (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              No job postings found
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Create your first job posting to start receiving applications
-            </Typography>
-            <Button 
-              variant="contained" 
-              onClick={() => navigate('/employer/post-job')}
-            >
-              Post a Job
-            </Button>
-          </Box>
         )}
       </Paper>
 

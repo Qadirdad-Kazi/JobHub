@@ -10,7 +10,8 @@ interface AuthContextType {
   login: (credentials: { email: string; password: string }) => Promise<void>;
   register: (data: {
     email: string;
-    name: string;
+    firstName: string;
+    lastName: string;
     username: string;
     password: string;
     role: UserRole;
@@ -43,66 +44,115 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const response = await api.get('/api/auth/me');
         setUser(response.data);
         localStorage.setItem('userData', JSON.stringify(response.data));
+        
+        // Redirect to appropriate dashboard if on login/register pages
+        const currentPath = window.location.pathname;
+        if (currentPath === '/login' || currentPath === '/register') {
+          handleRoleBasedRedirect(response.data.role);
+        }
       }
     } catch (error) {
       console.error('Error during token verification:', error);
       localStorage.removeItem('token');
+      localStorage.removeItem('userData');
       delete api.defaults.headers.common['Authorization'];
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleRoleBasedRedirect = (role: UserRole) => {
+    try {
+      switch (role) {
+        case UserRole.JOBSEEKER:
+          navigate('/jobseeker/dashboard');
+          break;
+        case UserRole.EMPLOYER:
+          navigate('/employer/dashboard');
+          break;
+        default:
+          throw new Error('Invalid user role');
+      }
+    } catch (error) {
+      console.error('Error during role-based redirect:', error);
+      toast({
+        title: 'Navigation Error',
+        description: 'There was an error redirecting you to your dashboard. Please try logging in again.',
+      });
+      logout();
+    }
+  };
+
   const login = async (credentials: { email: string; password: string }) => {
-    const response = await api.post('/api/auth/login', credentials);
-    const { token, user } = response.data;
-    localStorage.setItem('token', token);
-    localStorage.setItem('userData', JSON.stringify(user));
-    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    setUser(user);
+    try {
+      const response = await api.post('/api/auth/login', credentials);
+      const { token, user } = response.data;
+      
+      if (!user.role) {
+        throw new Error('Invalid user role received from server');
+      }
 
-    toast({
-      title: 'Login successful',
-      description: 'Welcome back! You\'ve been logged in successfully.',
-    });
+      localStorage.setItem('token', token);
+      localStorage.setItem('userData', JSON.stringify(user));
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setUser(user);
 
-    // Redirect based on user role
-    if (user.role === UserRole.JOBSEEKER) {
-      navigate('/jobseeker/dashboard');
-    } else if (user.role === UserRole.EMPLOYER) {
-      navigate('/employer/dashboard');
+      toast({
+        title: 'Login successful',
+        description: 'Welcome back! You\'ve been logged in successfully.',
+      });
+
+      handleRoleBasedRedirect(user.role);
+    } catch (error: any) {
+      console.error('Login error:', error);
+      toast({
+        title: 'Login failed',
+        description: error.message || 'An error occurred during login. Please try again.',
+      });
+      throw error;
     }
   };
 
   const register = async (data: {
     email: string;
-    name: string;
+    firstName: string;
+    lastName: string;
     username: string;
     password: string;
     role: UserRole;
   }) => {
-    const response = await api.post('/api/auth/register', data);
-    const { token, user } = response.data;
-    localStorage.setItem('token', token);
-    localStorage.setItem('userData', JSON.stringify(user));
-    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    setUser(user);
+    try {
+      const response = await api.post('/api/auth/register', data);
+      const { token, user } = response.data;
+      
+      if (!user.role) {
+        throw new Error('Invalid user role received from server');
+      }
 
-    toast({
-      title: 'Registration successful',
-      description: 'Welcome to CareerConnectPro! Your account has been created successfully.',
-    });
+      localStorage.setItem('token', token);
+      localStorage.setItem('userData', JSON.stringify(user));
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setUser(user);
 
-    // Redirect based on user role
-    if (user.role === UserRole.JOBSEEKER) {
-      navigate('/jobseeker/dashboard');
-    } else if (user.role === UserRole.EMPLOYER) {
-      navigate('/employer/dashboard');
+      toast({
+        title: 'Registration successful',
+        description: 'Welcome to CareerConnectPro! Your account has been created successfully.',
+      });
+
+      handleRoleBasedRedirect(user.role);
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      toast({
+        title: 'Registration failed',
+        description: error.message || 'An error occurred during registration. Please try again.',
+      });
+      throw error;
     }
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('userData');
     delete api.defaults.headers.common['Authorization'];
     setUser(null);
     navigate('/');

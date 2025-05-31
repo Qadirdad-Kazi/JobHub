@@ -42,17 +42,30 @@ interface Job {
 
 interface Application {
   _id: string;
-  jobId: string;
-  userId: string;
-  status: string;
+  jobId: {
+    _id: string;
+    title: string;
+    company: string;
+    location: string;
+    type: string;
+    status: string;
+    postedBy: {
+      _id: string;
+      name: string;
+      company: string;
+    };
+  };
+  userId: {
+    _id: string;
+    name: string;
+    email: string;
+    bio?: string;
+    location?: string;
+    skills?: string[];
+  };
+  status: 'pending' | 'interview' | 'accepted' | 'rejected';
   createdAt: string;
   updatedAt: string;
-  job?: Job;
-  user?: {
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
 }
 
 interface Stats {
@@ -118,13 +131,21 @@ export const EmployerDashboard: React.FC = () => {
   
   
   // Fetch recent applications
-  const { data: applications, isLoading: isLoadingApplications } = useQuery<Application[]>({
-    queryKey: ['/api/applications'],
-    enabled: false, // Disable this query until the endpoint is implemented
+  const { data: applications = [], isLoading: isLoadingApplications } = useQuery<Application[]>({
+    queryKey: ['/api/employer/applications'],
+    enabled: !!user,
     queryFn: async () => {
       try {
-        // This endpoint doesn't exist yet, so we'll return mock data
-        return [];
+        const response = await fetch('/api/employer/applications', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        if (!response.ok) {
+          throw new Error('Failed to fetch applications');
+        }
+        const data = await response.json();
+        return data;
       } catch (error) {
         console.error('Error fetching applications:', error);
         return [];
@@ -132,21 +153,25 @@ export const EmployerDashboard: React.FC = () => {
     }
   });
   
-  // Calculate stats from jobs data
+  // Calculate stats from jobs and applications data
   const stats: Stats | null = React.useMemo(() => {
-    if (!jobs) return null;
+    if (!jobs || !applications) return null;
     
     // Calculate active jobs (jobs with no status or status === 'active')
     const activeJobs = jobs.filter((job: any) => !job.status || job.status === 'active' || job.status === 'Active').length;
     
+    // Calculate interviews scheduled and positions filled
+    const interviewsScheduled = applications.filter(app => app.status === 'interview').length;
+    const positionsFilled = applications.filter(app => app.status === 'accepted').length;
+    
     return {
       activeJobs,
       totalJobs: jobs.length,
-      totalApplications: 0, // We don't have applications data yet
-      interviewsScheduled: 0,
-      positionsFilled: 0
+      totalApplications: applications.length,
+      interviewsScheduled,
+      positionsFilled
     };
-  }, [jobs]);
+  }, [jobs, applications]);
   
   const isLoadingStats = isLoadingJobs;
   
@@ -192,62 +217,54 @@ export const EmployerDashboard: React.FC = () => {
         
         {activeTab === 'overview' && (
           <Stack spacing={4} width="100%">
-            {/* Statistics Cards with real data from the backend */}
+            {/* Statistics Cards */}
             <Box width="100%">
               <Stack direction="row" spacing={3} flexWrap="wrap">
                 <Box width={{ xs: '100%', sm: '50%', md: '25%' }} px={1}>
                   <Card>
                     <CardContent>
-                      <Typography color="text.secondary" gutterBottom>
+                      <Typography color="textSecondary" gutterBottom>
                         Active Jobs
                       </Typography>
-                      {isLoadingStats ? (
-                        <CircularProgress size={24} />
-                      ) : (
-                        <Typography variant="h4">{stats?.activeJobs !== undefined ? stats.activeJobs : (jobs && jobs.length > 0 ? jobs.filter((job: any) => !job.status || job.status === 'active' || job.status === 'Active').length : 0)}</Typography>
-                      )}
+                      <Typography variant="h5" component="div">
+                        {isLoadingStats ? <CircularProgress size={20} /> : stats?.activeJobs || 0}
+                      </Typography>
                     </CardContent>
                   </Card>
                 </Box>
                 <Box width={{ xs: '100%', sm: '50%', md: '25%' }} px={1}>
                   <Card>
                     <CardContent>
-                      <Typography color="text.secondary" gutterBottom>
+                      <Typography color="textSecondary" gutterBottom>
                         Total Applications
                       </Typography>
-                      {isLoadingStats ? (
-                        <CircularProgress size={24} />
-                      ) : (
-                        <Typography variant="h4">{stats?.totalApplications !== undefined ? stats.totalApplications : (applications && applications.length > 0 ? applications.length : 0)}</Typography>
-                      )}
+                      <Typography variant="h5" component="div">
+                        {isLoadingApplications ? <CircularProgress size={20} /> : stats?.totalApplications || 0}
+                      </Typography>
                     </CardContent>
                   </Card>
                 </Box>
                 <Box width={{ xs: '100%', sm: '50%', md: '25%' }} px={1}>
                   <Card>
                     <CardContent>
-                      <Typography color="text.secondary" gutterBottom>
+                      <Typography color="textSecondary" gutterBottom>
                         Interviews Scheduled
                       </Typography>
-                      {isLoadingStats ? (
-                        <CircularProgress size={24} />
-                      ) : (
-                        <Typography variant="h4">{stats?.interviewsScheduled !== undefined ? stats.interviewsScheduled : 0}</Typography>
-                      )}
+                      <Typography variant="h5" component="div">
+                        {isLoadingApplications ? <CircularProgress size={20} /> : stats?.interviewsScheduled || 0}
+                      </Typography>
                     </CardContent>
                   </Card>
                 </Box>
                 <Box width={{ xs: '100%', sm: '50%', md: '25%' }} px={1}>
                   <Card>
                     <CardContent>
-                      <Typography color="text.secondary" gutterBottom>
+                      <Typography color="textSecondary" gutterBottom>
                         Positions Filled
                       </Typography>
-                      {isLoadingStats ? (
-                        <CircularProgress size={24} />
-                      ) : (
-                        <Typography variant="h4">{stats?.positionsFilled !== undefined ? stats.positionsFilled : 0}</Typography>
-                      )}
+                      <Typography variant="h5" component="div">
+                        {isLoadingApplications ? <CircularProgress size={20} /> : stats?.positionsFilled || 0}
+                      </Typography>
                     </CardContent>
                   </Card>
                 </Box>
@@ -263,15 +280,21 @@ export const EmployerDashboard: React.FC = () => {
                 <List>
                   {isLoadingJobs ? (
                     <ListItem>
-                      <ListItemText primary="Loading jobs..." />
+                      <Box component="div">
+                        <Typography component="div">Loading jobs...</Typography>
+                      </Box>
                     </ListItem>
                   ) : jobs && jobs.length > 0 ? (
                     jobs.slice(0, 5).map((job: any) => (
                       <ListItem key={job._id}>
-                        <ListItemText 
-                          primary={job.title}
-                          secondary={`Posted ${new Date(job.createdAt).toLocaleDateString()}`}
-                        />
+                        <Box flex={1}>
+                          <Typography component="div" variant="body1">
+                            {job.title}
+                          </Typography>
+                          <Typography component="div" variant="body2" color="textSecondary">
+                            Posted {new Date(job.createdAt).toLocaleDateString()}
+                          </Typography>
+                        </Box>
                         <Button 
                           size="small" 
                           variant="outlined" 
@@ -283,7 +306,9 @@ export const EmployerDashboard: React.FC = () => {
                     ))
                   ) : (
                     <ListItem>
-                      <ListItemText primary="No jobs posted yet" />
+                      <Box component="div">
+                        <Typography component="div">No jobs posted yet</Typography>
+                      </Box>
                     </ListItem>
                   )}
                 </List>
@@ -296,65 +321,73 @@ export const EmployerDashboard: React.FC = () => {
             </Box>
             
             {/* Recent Applications */}
-            <Box width={{ xs: '100%', md: '50%' }} px={1}>
-              <Paper sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  Recent Applications
-                </Typography>
-                <List>
-                  {isLoadingApplications ? (
-                    <ListItem>
-                      <Box sx={{ display: 'flex', width: '100%', justifyContent: 'center', py: 2 }}>
-                        <CircularProgress />
-                      </Box>
-                    </ListItem>
-                  ) : applications && applications.length > 0 ? (
-                    applications.slice(0, 5).map((application) => {
-                      // Format the date
-                      const applicationDate = new Date(application.createdAt);
-                      const daysAgo = Math.floor((Date.now() - applicationDate.getTime()) / (1000 * 60 * 60 * 24));
-                      const timeAgo = daysAgo === 0 ? 'Today' : daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`;
-                      
-                      // Get applicant name
-                      const applicantName = application.user ? 
-                        `${application.user.firstName} ${application.user.lastName}` : 
-                        'Unknown Applicant';
-                      
-                      // Get job title
-                      const jobTitle = application.job?.title || 'Unknown Position';
-                      
-                      return (
-                        <ListItem key={application._id}>
-                          <ListItemText 
-                            primary={`${applicantName} - ${jobTitle}`}
-                            secondary={`Applied ${timeAgo}`}
-                          />
-                          <Chip 
-                            label={application.status.charAt(0).toUpperCase() + application.status.slice(1)} 
-                            color={
-                              application.status === 'new' ? 'info' : 
-                              application.status === 'reviewed' ? 'primary' : 
-                              application.status === 'interview' ? 'warning' : 
-                              'default'
-                            } 
-                            size="small" 
-                          />
-                        </ListItem>
-                      );
-                    })
-                  ) : (
-                    <ListItem>
-                      <ListItemText primary="No applications received yet. Applications will appear here when job seekers apply to your jobs." />
-                    </ListItem>
-                  )}
-                </List>
-                <Box sx={{ mt: 2, textAlign: 'center' }}>
-                  <Button variant="outlined" onClick={() => navigate('/employer/applications')}>
-                    View All Applications
-                  </Button>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Recent Applications
+              </Typography>
+              {isLoadingApplications ? (
+                <Box display="flex" justifyContent="center" p={3}>
+                  <CircularProgress />
                 </Box>
-              </Paper>
-            </Box>
+              ) : applications && applications.length > 0 ? (
+                <List>
+                  {applications.slice(0, 5).map((application) => (
+                    <ListItem
+                      key={application._id}
+                      divider
+                      sx={{
+                        display: 'flex',
+                        flexDirection: { xs: 'column', sm: 'row' },
+                        alignItems: { xs: 'flex-start', sm: 'center' },
+                        gap: 2,
+                      }}
+                    >
+                      <Box flex={1}>
+                        <Typography component="div" variant="subtitle1">
+                          {application.userId.name}
+                        </Typography>
+                        <Typography component="div" variant="body2" color="textSecondary">
+                          {application.userId.email}
+                        </Typography>
+                        <Typography component="div" variant="body2" color="textSecondary">
+                          Applied for: {application.jobId.title}
+                        </Typography>
+                        {application.userId.location && (
+                          <Typography component="div" variant="body2" color="textSecondary">
+                            Location: {application.userId.location}
+                          </Typography>
+                        )}
+                      </Box>
+                      <Box>
+                        <Chip
+                          label={application.status.charAt(0).toUpperCase() + application.status.slice(1)}
+                          color={
+                            application.status === 'pending' ? 'default' :
+                            application.status === 'interview' ? 'primary' :
+                            application.status === 'accepted' ? 'success' :
+                            'error'
+                          }
+                          size="small"
+                        />
+                      </Box>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => navigate(`/applications/${application._id}`)}
+                      >
+                        View Details
+                      </Button>
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Box py={3} textAlign="center">
+                  <Typography component="div" color="textSecondary">
+                    No applications yet
+                  </Typography>
+                </Box>
+              )}
+            </Paper>
           </Stack>
         )}
         
@@ -369,3 +402,4 @@ export const EmployerDashboard: React.FC = () => {
     </Container>
   );
 };
+

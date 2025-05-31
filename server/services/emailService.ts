@@ -1,15 +1,34 @@
 import nodemailer from 'nodemailer';
 import { config } from '../config';
 
-// Create reusable transporter
-const transporter = nodemailer.createTransport({
-  host: config.email.host,
-  port: config.email.port,
-  secure: config.email.secure,
-  auth: {
-    user: config.email.user,
-    pass: config.email.password,
-  },
+// Create a test account if in development
+const createTestAccount = async () => {
+  if (process.env.NODE_ENV === 'development') {
+    try {
+      const testAccount = await nodemailer.createTestAccount();
+      return nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass,
+        },
+      });
+    } catch (error) {
+      console.warn('Failed to create test email account, email notifications will be disabled');
+      return null;
+    }
+  }
+  return null;
+};
+
+// Initialize transporter
+let transporter: nodemailer.Transporter | null = null;
+
+// Initialize the transporter
+createTestAccount().then(t => {
+  transporter = t;
 });
 
 // Email templates
@@ -74,41 +93,98 @@ CareerConnectPro Team
 
 export const emailService = {
   async sendApplicationStatusUpdate(
-    to: string,
-    data: Parameters<typeof emailTemplates.applicationStatusUpdate>[0]
+    applicantEmail: string,
+    data: {
+      applicantName: string;
+      jobTitle: string;
+      company: string;
+      status: string;
+      notes?: string;
+    }
   ) {
-    const { subject, text } = emailTemplates.applicationStatusUpdate(data);
-    return transporter.sendMail({
-      from: config.email.from,
-      to,
-      subject,
-      text,
-    });
+    try {
+      if (!transporter) {
+        console.log('Email service not configured, skipping notification');
+        return;
+      }
+
+      await transporter.sendMail({
+        from: '"JobHub" <notifications@jobhub.com>',
+        to: applicantEmail,
+        subject: `Application Status Update: ${data.jobTitle}`,
+        html: `
+          <h1>Application Status Update</h1>
+          <p>Dear ${data.applicantName},</p>
+          <p>Your application for ${data.jobTitle} at ${data.company} has been updated to: ${data.status}</p>
+          ${data.notes ? `<p>Notes: ${data.notes}</p>` : ''}
+        `,
+      });
+    } catch (error) {
+      console.warn('Failed to send email notification:', error);
+      // Don't throw error, just log it
+    }
   },
 
   async sendApplicationWithdrawnNotification(
-    to: string,
-    data: Parameters<typeof emailTemplates.applicationWithdrawn>[0]
+    employerEmail: string,
+    data: {
+      employerName: string;
+      applicantName: string;
+      jobTitle: string;
+      reason?: string;
+    }
   ) {
-    const { subject, text } = emailTemplates.applicationWithdrawn(data);
-    return transporter.sendMail({
-      from: config.email.from,
-      to,
-      subject,
-      text,
-    });
+    try {
+      if (!transporter) {
+        console.log('Email service not configured, skipping notification');
+        return;
+      }
+
+      await transporter.sendMail({
+        from: '"JobHub" <notifications@jobhub.com>',
+        to: employerEmail,
+        subject: `Application Withdrawn: ${data.jobTitle}`,
+        html: `
+          <h1>Application Withdrawn</h1>
+          <p>Dear ${data.employerName},</p>
+          <p>${data.applicantName} has withdrawn their application for ${data.jobTitle}.</p>
+          ${data.reason ? `<p>Reason: ${data.reason}</p>` : ''}
+        `,
+      });
+    } catch (error) {
+      console.warn('Failed to send email notification:', error);
+      // Don't throw error, just log it
+    }
   },
 
   async sendNewApplicationNotification(
-    to: string,
-    data: Parameters<typeof emailTemplates.newApplication>[0]
+    employerEmail: string,
+    data: {
+      employerName: string;
+      applicantName: string;
+      jobTitle: string;
+    }
   ) {
-    const { subject, text } = emailTemplates.newApplication(data);
-    return transporter.sendMail({
-      from: config.email.from,
-      to,
-      subject,
-      text,
-    });
+    try {
+      if (!transporter) {
+        console.log('Email service not configured, skipping notification');
+        return;
+      }
+
+      await transporter.sendMail({
+        from: '"JobHub" <notifications@jobhub.com>',
+        to: employerEmail,
+        subject: `New Application: ${data.jobTitle}`,
+        html: `
+          <h1>New Job Application</h1>
+          <p>Dear ${data.employerName},</p>
+          <p>${data.applicantName} has applied for the position of ${data.jobTitle}.</p>
+          <p>Log in to your dashboard to review the application.</p>
+        `,
+      });
+    } catch (error) {
+      console.warn('Failed to send email notification:', error);
+      // Don't throw error, just log it
+    }
   },
 }; 
