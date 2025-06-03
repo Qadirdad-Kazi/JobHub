@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-
 import { config } from './config';
 
 // Use the MongoDB URI from the config file

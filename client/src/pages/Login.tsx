@@ -10,8 +10,7 @@ import {
   Alert,
 } from '@mui/material';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { Grid } from '@mui/material';
+import { useAuth } from '../hooks/useAuth';
 
 export const Login: React.FC = () => {
   const { login } = useAuth();
@@ -25,7 +24,7 @@ export const Login: React.FC = () => {
     setError('');
     setIsLoading(true);
     try {
-      await login(email, password);
+      await login({ email, password });
     } catch (err: any) {
       setError(err.message || 'Invalid email or password');
     } finally {
@@ -58,8 +57,8 @@ export const Login: React.FC = () => {
           )}
           
           <form onSubmit={handleSubmit}>
-            <Grid container spacing={3}>
-              <Grid size={12}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Box>
                 <TextField
                   fullWidth
                   label="Email"
@@ -69,8 +68,8 @@ export const Login: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
-              </Grid>
-              <Grid size={12}>
+              </Box>
+              <Box>
                 <TextField
                   fullWidth
                   label="Password"
@@ -80,8 +79,8 @@ export const Login: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
-              </Grid>
-              <Grid size={12}>
+              </Box>
+              <Box>
                 <Button
                   type="submit"
                   fullWidth
@@ -92,8 +91,8 @@ export const Login: React.FC = () => {
                 >
                   {isLoading ? 'Signing in...' : 'Sign In'}
                 </Button>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
             
             <Box sx={{ mt: 3, textAlign: 'center' }}>
               <Typography variant="body2">

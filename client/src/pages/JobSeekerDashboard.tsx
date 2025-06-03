@@ -74,8 +74,7 @@ export const JobSeekerDashboard: React.FC = () => {
   // Fetch user's applications
   const { data: applications, isLoading: isLoadingApplications } = useQuery<Application[]>({
     queryKey: ['/api/applications/me'],
-    // Disable this query until we fix the endpoint
-    enabled: false,
+    enabled: true,
     retry: 1,
     queryFn: async () => {
       try {

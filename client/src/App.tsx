@@ -17,6 +17,7 @@ import { PostJob } from './pages/PostJob';
 import { JobSeekerDashboard } from './pages/JobSeekerDashboard';
 import { EmployerDashboard } from './pages/EmployerDashboard';
 import { EmployerJobs } from './pages/EmployerJobs';
+import ApplicationDetails from './pages/ApplicationDetails';
 import { ResumeBuilder } from './pages/ResumeBuilder';
 import { ProfilePage } from './pages/ProfilePage';
 import { MyApplications } from './pages/MyApplications';
@@ -90,6 +91,14 @@ export const App: React.FC = () => {
                     element={
                       <ProtectedRoute allowedRoles={[UserRole.EMPLOYER]}>
                         <EmployerJobs />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/applications/:id"
+                    element={
+                      <ProtectedRoute allowedRoles={[UserRole.EMPLOYER]}>
+                        <ApplicationDetails />
                       </ProtectedRoute>
                     }
                   />

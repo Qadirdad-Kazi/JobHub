@@ -21,7 +21,7 @@ export class AnalyticsService {
       }
       
       // Get all applications for this job
-      const applications = await Application.find({ job: jobId });
+      const applications = await Application.find({ jobId: jobId });
       
       // Calculate application metrics
       const totalApplications = applications.length;
@@ -33,12 +33,13 @@ export class AnalyticsService {
         reviewed: 0,
         interviewing: 0,
         rejected: 0,
-        hired: 0
-      };
+        hired: 0,
+        withdrawn: 0
+      } as { [key in ApplicationStatus]: number };
       
       applications.forEach(app => {
         if (app.status in statusCounts) {
-          statusCounts[app.status as ApplicationStatus]++;
+          statusCounts[app.status]++;
         }
       });
       
@@ -52,7 +53,7 @@ export class AnalyticsService {
       const applicationTrend = await Application.aggregate([
         { 
           $match: { 
-            job: new mongoose.Types.ObjectId(jobId),
+            jobId: jobId,
             createdAt: { $gte: thirtyDaysAgo }
           } 
         },
@@ -106,7 +107,7 @@ export class AnalyticsService {
       const totalViews = jobs.reduce((sum, job) => sum + ((job as any).viewCount || 0), 0);
       
       // Get all applications for this employer's jobs
-      const applications = await Application.find({ job: { $in: jobIds } });
+      const applications = await Application.find({ jobId: { $in: jobIds } });
       
       // Calculate total applications
       const totalApplications = applications.length;
@@ -117,12 +118,13 @@ export class AnalyticsService {
         reviewed: 0,
         interviewing: 0,
         rejected: 0,
-        hired: 0
-      };
+        hired: 0,
+        withdrawn: 0
+      } as { [key in ApplicationStatus]: number };
       
       applications.forEach(app => {
         if (app.status in statusCounts) {
-          statusCounts[app.status as ApplicationStatus]++;
+          statusCounts[app.status]++;
         }
       });
       
@@ -133,7 +135,7 @@ export class AnalyticsService {
       const applicationTrend = await Application.aggregate([
         { 
           $match: { 
-            job: { $in: jobIds },
+            jobId: { $in: jobIds },
             createdAt: { $gte: thirtyDaysAgo }
           } 
         },

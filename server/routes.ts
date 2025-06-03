@@ -944,16 +944,55 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Update application status (employer only)
-  app.put('/api/applications/:id', authenticate, authorizeEmployer, validateBody(updateApplicationSchema), async (req: AuthRequest, res) => {
-    // Type assertion to access validatedBody
-    const validatedReq = req as ValidatedRequest<z.infer<typeof updateApplicationSchema>>;
-    try {
-      if (!req.user) {
-        return res.status(401).json({ message: 'Not authenticated' });
+  // Handle application updates by ID - used by both employers and job seekers
+  app.route('/api/applications/:id')
+    // Get application details
+    .get(authenticate, async (req: AuthRequest, res) => {
+      try {
+        if (!req.user) {
+          return res.status(401).json({ message: 'Not authenticated' });
+        }
+
+        const application = await Application.findById(req.params.id)
+          .populate([
+            { 
+              path: 'jobId',
+              select: 'title company location type status postedBy',
+              populate: { path: 'postedBy', select: 'name company' }
+            },
+            { path: 'userId', select: 'name email bio location skills' },
+            { path: 'resumeId', select: 'title content' }
+          ]);
+
+        if (!application) {
+          return res.status(404).json({ message: 'Application not found' });
+        }
+
+        // Allow access only to the applicant or the employer who posted the job
+        const jobPostedBy = (application.jobId as any)?.postedBy?._id.toString();
+        const applicantId = application.userId.toString();
+        const isAuthorized = (req.user._id as any).toString() === applicantId || (req.user._id as any).toString() === jobPostedBy;
+
+        if (!isAuthorized) {
+          return res.status(403).json({ message: 'Not authorized to view this application' });
+        }
+
+        res.json(application);
+      } catch (error) {
+        console.error('Get application error:', error);
+        res.status(500).json({ message: 'Server error getting application' });
       }
-      
-      const { status, notes } = validatedReq.validatedBody;
+    })
+    // Update application status (employer only)
+    .put(authenticate, authorizeEmployer, validateBody(updateApplicationSchema), async (req: AuthRequest, res) => {
+      // Type assertion to access validatedBody
+      const validatedReq = req as ValidatedRequest<z.infer<typeof updateApplicationSchema>>;
+      try {
+        if (!req.user) {
+          return res.status(401).json({ message: 'Not authenticated' });
+        }
+        
+        const { status, notes } = validatedReq.validatedBody;
 
       // Find application and verify job belongs to employer
       const application = await Application.findById(req.params.id)

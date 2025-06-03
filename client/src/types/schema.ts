@@ -1,7 +1,7 @@
 // Shared types for the frontend
 export const UserRole = {
-  JOBSEEKER: "user",
-  EMPLOYER: "admin",
+  JOBSEEKER: "jobseeker",
+  EMPLOYER: "employer",
 } as const;
 
 export const JobType = {

@@ -5,12 +5,14 @@ const applicationSchema = new mongoose.Schema({
   jobId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Job',
-    required: true 
+    required: true,
+    index: true
   },
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User',
-    required: true 
+    required: true,
+    index: true
   },
   resumeId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -19,26 +21,33 @@ const applicationSchema = new mongoose.Schema({
   },
   status: { 
     type: String, 
-    enum: ['pending', 'reviewed', 'accepted', 'rejected'],
-    default: 'pending'
+    enum: ['pending', 'reviewed', 'interviewing', 'accepted', 'rejected', 'withdrawn'],
+    default: 'pending',
+    index: true
   },
   coverLetter: { type: String },
   notes: { type: String },
+  withdrawalReason: { type: String },
+  withdrawnAt: { type: Date },
   appliedAt: { 
     type: Date,
-    default: Date.now
+    default: Date.now,
+    index: true
   },
   updatedAt: { 
     type: Date,
-    default: Date.now
+    default: Date.now,
+    index: true
   }
+}, {
+  timestamps: true
 });
 
-// Add indexes for common queries
-applicationSchema.index({ jobId: 1, userId: 1 }, { unique: true }); // Prevent duplicate applications
-applicationSchema.index({ jobId: 1 });
-applicationSchema.index({ userId: 1 });
-applicationSchema.index({ status: 1 });
+// Add compound indexes for common queries
+applicationSchema.index({ jobId: 1, userId: 1 }, { unique: true });
+applicationSchema.index({ jobId: 1, status: 1 });
+applicationSchema.index({ userId: 1, status: 1 });
+applicationSchema.index({ jobId: 1, appliedAt: -1 });
 
 const Application = mongoose.model<ApplicationType>('Application', applicationSchema);
 

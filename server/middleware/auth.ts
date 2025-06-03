@@ -9,7 +9,12 @@ export interface AuthRequest extends Request {
 }
 
 export function generateToken(userId: string, role: string): string {
-  return jwt.sign({ userId, role }, config.jwtSecret, { expiresIn: '7d' });
+  // Ensure role is lowercase to match UserRole enum values
+  const normalizedRole = role.toLowerCase();
+  // Use a hardcoded secret for development
+  const secret = config.jwtSecret || 'jobhub_secure_jwt_secret_key_2025';
+  console.log('Generating token for:', { userId, role: normalizedRole });
+  return jwt.sign({ userId, role: normalizedRole }, secret, { expiresIn: '7d' });
 }
 
 export async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
@@ -20,7 +25,9 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; role: string };
+    // Use the same hardcoded secret for verification
+    const secret = config.jwtSecret || 'jobhub_secure_jwt_secret_key_2025';
+    const decoded = jwt.verify(token, secret) as { userId: string; role: string };
 
     const user = await User.findById(decoded.userId);
     if (!user) {
@@ -42,6 +49,12 @@ export function authorizeJobSeeker(req: AuthRequest, res: Response, next: NextFu
     return res.status(401).json({ message: 'Not authenticated' });
   }
 
+  console.log('Authorizing job seeker. User role:', {
+    actualRole: req.user.role,
+    expectedRole: UserRole.JOBSEEKER,
+    matches: req.user.role === UserRole.JOBSEEKER
+  });
+
   if (req.user.role !== UserRole.JOBSEEKER) {
     return res.status(403).json({ message: 'Access denied. Job seeker role required.' });
   }
@@ -53,6 +66,12 @@ export function authorizeEmployer(req: AuthRequest, res: Response, next: NextFun
   if (!req.user) {
     return res.status(401).json({ message: 'Not authenticated' });
   }
+
+  console.log('Authorizing employer. User role:', {
+    actualRole: req.user.role,
+    expectedRole: UserRole.EMPLOYER,
+    matches: req.user.role === UserRole.EMPLOYER
+  });
 
   if (req.user.role !== UserRole.EMPLOYER) {
     return res.status(403).json({ message: 'Access denied. Employer role required.' });
