@@ -43,6 +43,15 @@ app.use((req, res, next) => {
   next();
 });
 
+// Health check route
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    message: 'JobHub API is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Register all routes
 // registerRoutes returns a Server, but we just need it to register the routes on our app
 registerRoutes(app);
