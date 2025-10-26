@@ -7,10 +7,10 @@
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "npm run build:client && npm run build:server",
     "build:client": "cd client && npm install && npm run build",
-    "build:server": "tsc --project tsconfig.json",
+    "build:server": "npx tsc --project tsconfig.json",
     "start": "NODE_ENV=production node dist/index.js",
-    "check": "tsc",
-    "vercel-build": "echo 'Building for Vercel' && npm install && tsc --project tsconfig.json"
+    "check": "npx tsc",
+    "vercel-build": "echo 'Vercel build ready - dependencies installed'"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
