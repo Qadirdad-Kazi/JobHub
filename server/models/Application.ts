@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Application as ApplicationType } from '@shared/schema';
+import { Application as ApplicationType } from '../../shared/schema.js';
 
 const applicationSchema = new mongoose.Schema({
   jobId: { 

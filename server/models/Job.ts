@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Job as JobType } from '@shared/schema';
+import { Job as JobType } from '../../shared/schema.js';
 
 const jobSchema = new mongoose.Schema({
   title: { type: String, required: true },
