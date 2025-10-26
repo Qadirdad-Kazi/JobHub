@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { config } from './config';
+import { config } from './config.js';
 
 // Use the MongoDB URI from the config file
 const MONGODB_URI = config.mongoUri;

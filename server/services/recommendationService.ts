@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
-import Job from '../models/Job';
-import User from '../models/User';
-import { Job as JobType } from '@shared/schema';
+import Job from '../models/Job.js';
+import User from '../models/User.js';
+import { Job as JobType } from '../../shared/schema.js';
 
 /**
  * Service for generating job recommendations based on user skills and preferences

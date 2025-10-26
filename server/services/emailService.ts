@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { config } from '../config';
+import { config } from '../config.js';
 
 // Create a test account if in development
 const createTestAccount = async () => {

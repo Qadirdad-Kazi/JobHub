@@ -1,18 +1,18 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import mongoose, { Types } from "mongoose";
-import User, { IUser } from "./models/User";
+import User, { IUser } from "./models/User.js";
 import { createServer, type Server } from "http";
 import bcrypt from "bcrypt";
 import { z } from "zod";
-import { UserRole, ApplicationStatus } from "@shared/schema";
-import { authenticate, authorizeEmployer, authorizeJobSeeker, generateToken, AuthRequest } from './middleware/auth';
-import { db } from './db';
-import Resume from './models/Resume';
-import Job from './models/Job';
-import Application from './models/Application';
-import { emailService } from './services/emailService';
-import RecommendationService from './services/recommendationService';
-import AnalyticsService from './services/analyticsService';
+import { UserRole, ApplicationStatus } from "../shared/schema.js";
+import { authenticate, authorizeEmployer, authorizeJobSeeker, generateToken, AuthRequest } from './middleware/auth.js';
+import { db } from './db.js';
+import Resume from './models/Resume.js';
+import Job from './models/Job.js';
+import Application from './models/Application.js';
+import { emailService } from './services/emailService.js';
+import RecommendationService from './services/recommendationService.js';
+import AnalyticsService from './services/analyticsService.js';
 
 // Zod schemas for validation
 const registerSchema = z.object({

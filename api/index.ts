@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { config } from '../server/config';
-import { registerRoutes } from '../server/routes';
-import '../server/db'; // Initialize database connection
+import { config } from '../server/config.js';
+import { registerRoutes } from '../server/routes.js';
+import '../server/db.js'; // Initialize database connection
 
 const app = express();
 

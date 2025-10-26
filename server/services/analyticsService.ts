@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
-import Job from '../models/Job';
-import Application from '../models/Application';
-import { JobAnalytics, ApplicationStatus, EmployerAnalytics, TrendDataPoint } from '@shared/schema';
+import Job from '../models/Job.js';
+import Application from '../models/Application.js';
+import { JobAnalytics, ApplicationStatus, EmployerAnalytics, TrendDataPoint } from '../../shared/schema.js';
 
 /**
  * Service for generating analytics data for employers

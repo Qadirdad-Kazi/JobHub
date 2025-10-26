@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Application, UserRole } from '@shared/schema';
 import { applicationService } from '../services/applicationService';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../context/AuthContext';
 import {
   Badge,
   Button,
