@@ -12,6 +12,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { EmployerAnalytics as EmployerAnalyticsType } from '@shared/schema';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { api } from '../lib/api';
 
 export const EmployerAnalytics: React.FC = () => {
   const { data: analyticsResponse, isLoading } = useQuery({
@@ -20,15 +21,8 @@ export const EmployerAnalytics: React.FC = () => {
     enabled: false,
     queryFn: async () => {
       try {
-        const response = await fetch('/api/analytics/employer', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (!response.ok) {
-          throw new Error('Failed to fetch employer analytics');
-        }
-        return response.json();
+        const response = await api.get('/api/analytics/employer');
+        return response.data;
       } catch (error) {
         console.error('Error fetching employer analytics:', error);
         throw error;

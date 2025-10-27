@@ -17,6 +17,7 @@ import {
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../lib/api';
 
 interface JobFormData {
   title: string;
@@ -128,40 +129,29 @@ export const PostJob: React.FC = () => {
       
       console.log('Posting job with data:', jobData);
       
-      const response = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(jobData)
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to post job:', response.status, response.statusText);
-        let errorMessage = 'Failed to post job';
+      try {
+        const response = await api.post('/api/jobs', jobData);
+        return response.data;
+      } catch (error: any) {
+        console.error('Failed to post job:', error);
         
-        try {
-          const errorData = await response.json();
+        // Handle axios error response
+        if (error.response?.data) {
+          const errorData = error.response.data;
           
           if (errorData.errors && Array.isArray(errorData.errors)) {
             // Format Zod validation errors
-            errorMessage = errorData.errors.map((err: any) => 
+            const errorMessage = errorData.errors.map((err: any) => 
               `${err.path.join('.')}: ${err.message}`
             ).join(', ');
+            throw new Error(errorMessage);
           } else if (errorData.message) {
-            errorMessage = errorData.message;
+            throw new Error(errorData.message);
           }
-          
-          console.error('Error details:', errorData);
-        } catch (e) {
-          console.error('Could not parse error response:', e);
         }
         
-        throw new Error(errorMessage);
+        throw new Error(error.message || 'Failed to post job');
       }
-      
-      return response.json();
     },
     onSuccess: () => {
       navigate('/employer/jobs');

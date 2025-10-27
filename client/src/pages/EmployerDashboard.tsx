@@ -21,6 +21,7 @@ import { useQuery } from '@tanstack/react-query';
 import EmployerAnalytics from '../components/EmployerAnalytics';
 import JobAnalytics from '../components/JobAnalytics';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../lib/api';
 
 interface Job {
   _id: string;
@@ -89,16 +90,8 @@ export const EmployerDashboard: React.FC = () => {
     enabled: !!user,
     queryFn: async () => {
       try {
-        const response = await fetch('/api/jobs', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (!response.ok) {
-          console.error('Error fetching employer jobs:', response.status, response.statusText);
-          return { jobs: [], pagination: { total: 0, page: 1, pages: 1 } };
-        }
-        return response.json();
+        const response = await api.get('/api/jobs');
+        return response.data;
       } catch (error) {
         console.error('Error fetching employer jobs:', error);
         return { jobs: [], pagination: { total: 0, page: 1, pages: 1 } };
@@ -136,16 +129,8 @@ export const EmployerDashboard: React.FC = () => {
     enabled: !!user,
     queryFn: async () => {
       try {
-        const response = await fetch('/api/employer/applications', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (!response.ok) {
-          throw new Error('Failed to fetch applications');
-        }
-        const data = await response.json();
-        return data;
+        const response = await api.get('/api/employer/applications');
+        return response.data;
       } catch (error) {
         console.error('Error fetching applications:', error);
         return [];

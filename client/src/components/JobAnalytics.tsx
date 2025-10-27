@@ -11,6 +11,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { JobAnalytics as JobAnalyticsType } from '@shared/schema';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { api } from '../lib/api';
 
 interface JobAnalyticsProps {
   jobId: string;
@@ -36,11 +37,8 @@ export const JobAnalytics: React.FC<JobAnalyticsProps> = ({ jobId }) => {
   const { data: analyticsResponse, isLoading } = useQuery({
     queryKey: ['jobAnalytics', jobId],
     queryFn: async () => {
-      const response = await fetch(`/api/analytics/jobs/${jobId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch job analytics');
-      }
-      return response.json();
+      const response = await api.get(`/api/analytics/jobs/${jobId}`);
+      return response.data;
     },
     enabled: !!jobId,
   });

@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Application, Job, UserRole } from '@shared/schema';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../lib/api';
 
 export const JobSeekerDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -78,16 +79,8 @@ export const JobSeekerDashboard: React.FC = () => {
     retry: 1,
     queryFn: async () => {
       try {
-        const response = await fetch('/api/applications/me', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (!response.ok) {
-          console.error('Error fetching applications:', response.statusText);
-          return [];
-        }
-        return response.json();
+        const response = await api.get('/api/applications/me');
+        return response.data;
       } catch (error) {
         console.error('Error fetching applications:', error);
         return [];
@@ -102,16 +95,8 @@ export const JobSeekerDashboard: React.FC = () => {
     retry: 1,
     queryFn: async () => {
       try {
-        const response = await fetch('/api/jobs/saved', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (!response.ok) {
-          console.error('Error fetching saved jobs:', response.statusText);
-          return [];
-        }
-        return response.json();
+        const response = await api.get('/api/jobs/saved');
+        return response.data;
       } catch (error) {
         console.error('Error fetching saved jobs:', error);
         return [];
@@ -127,16 +112,8 @@ export const JobSeekerDashboard: React.FC = () => {
     enabled: false, // Disable this query since the endpoint doesn't exist yet
     queryFn: async () => {
       try {
-        const response = await fetch('/api/recommendations?limit=3', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (!response.ok) {
-          console.error('Error fetching recommendations:', response.statusText);
-          return { data: [] }; // Return empty array on error
-        }
-        return response.json();
+        const response = await api.get('/api/recommendations?limit=3');
+        return response.data;
       } catch (error) {
         console.error('Error fetching recommendations:', error);
         return { data: [] }; // Return empty array on error

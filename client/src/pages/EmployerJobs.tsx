@@ -26,6 +26,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../lib/api';
 
 interface Job {
   _id: string;
@@ -75,19 +76,9 @@ export const EmployerJobs: React.FC = () => {
     enabled: !!user,
     queryFn: async () => {
       try {
-        const response = await fetch('/api/jobs', {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
+        const response = await api.get('/api/jobs');
+        const data = response.data;
         
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Error fetching employer jobs:', response.status, response.statusText, errorText);
-          throw new Error(response.statusText || 'Failed to fetch jobs');
-        }
-        
-        const data = await response.json();
         // Extract jobs array from response (handle both array and paginated object formats)
         const jobsArray = data.jobs ? data.jobs : (Array.isArray(data) ? data : []);
         
@@ -133,20 +124,8 @@ export const EmployerJobs: React.FC = () => {
   const deleteMutation = useMutation({
     mutationFn: async (jobId: string) => {
       try {
-        const response = await fetch(`/api/jobs/${jobId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Error deleting job:', response.status, response.statusText, errorText);
-          throw new Error(response.statusText || 'Failed to delete job');
-        }
-        
-        return response.json();
+        const response = await api.delete(`/api/jobs/${jobId}`);
+        return response.data;
       } catch (error) {
         console.error('Error deleting job:', error);
         throw error;
@@ -173,22 +152,8 @@ export const EmployerJobs: React.FC = () => {
           throw new Error('Title, location, and description are required');
         }
 
-        const response = await fetch(`/api/jobs/${data.jobId}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(data.updates)
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Error updating job:', response.status, response.statusText, errorText);
-          throw new Error(response.statusText || 'Failed to update job');
-        }
-        
-        return response.json();
+        const response = await api.put(`/api/jobs/${data.jobId}`, data.updates);
+        return response.data;
       } catch (error) {
         console.error('Error updating job:', error);
         throw error;

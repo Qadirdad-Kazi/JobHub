@@ -4,6 +4,7 @@ import Grid from '@mui/material/Grid';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Job } from '@shared/schema';
+import { api } from '../lib/api';
 
 interface SearchParams {
   q: string;
@@ -34,14 +35,8 @@ export const JobsPage: React.FC = () => {
     queryFn: async () => {
       try {
         const queryString = new URLSearchParams(searchParams).toString();
-        const response = await fetch(`/api/jobs?${queryString}`);
-        
-        if (!response.ok) {
-          throw new Error(`Error fetching jobs: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        return data;
+        const response = await api.get(`/api/jobs?${queryString}`);
+        return response.data;
       } catch (error) {
         console.error('Error fetching jobs:', error);
         throw error;

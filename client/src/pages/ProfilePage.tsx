@@ -21,6 +21,7 @@ import { UserRole } from '@shared/schema';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import { config } from '../config';
+import { api } from '../lib/api';
 
 interface ProfileFormData {
   name: string;
@@ -64,28 +65,14 @@ export const ProfilePage: React.FC = () => {
     queryFn: async () => {
       try {
         // Try to fetch from API first using environment-based configuration
-        const apiBaseUrl = config.api.baseUrl.endsWith('/api') 
-          ? config.api.baseUrl.replace(/\/api$/, '') 
-          : config.api.baseUrl;
-          
-        console.log('Using API base URL from config:', apiBaseUrl);
+        console.log('Fetching user profile data from API');
         
-        const response = await fetch(`${apiBaseUrl}/api/auth/me`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Fetched user profile data from API:', data);
-          // Store in localStorage for offline access
-          localStorage.setItem('userData', JSON.stringify(data));
-          return data;
-        } else {
-          console.warn('API request failed, falling back to localStorage');
-          throw new Error('API request failed');
-        }
+        const response = await api.get('/api/auth/me');
+        const data = response.data;
+        console.log('Fetched user profile data from API:', data);
+        // Store in localStorage for offline access
+        localStorage.setItem('userData', JSON.stringify(data));
+        return data;
       } catch (error) {
         // Fallback to localStorage if API fails
         const storedData = localStorage.getItem('userData');
@@ -155,37 +142,20 @@ export const ProfilePage: React.FC = () => {
     mutationFn: async (data: ProfileFormData) => {
       try {
         // Use environment-based configuration for API URL
-        const apiBaseUrl = config.api.baseUrl.endsWith('/api') 
-          ? config.api.baseUrl.replace(/\/api$/, '') 
-          : config.api.baseUrl;
+        console.log('Updating profile using API');
         
-        console.log('Updating profile using API base URL:', apiBaseUrl);
+        const response = await api.put('/api/auth/profile', data);
+        const responseData = response.data;
         
-        const response = await fetch(`${apiBaseUrl}/api/auth/profile`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify(data)
-        });
+        // Store updated profile data in localStorage for offline access
+        const updatedProfile = {
+          ...userProfile,
+          ...data,
+          updatedAt: new Date().toISOString()
+        };
+        localStorage.setItem('userData', JSON.stringify(updatedProfile));
         
-        if (response.ok) {
-          const responseData = await response.json();
-          
-          // Store updated profile data in localStorage for offline access
-          const updatedProfile = {
-            ...userProfile,
-            ...data,
-            updatedAt: new Date().toISOString()
-          };
-          localStorage.setItem('userData', JSON.stringify(updatedProfile));
-          
-          return responseData;
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || 'Failed to update profile on server');
-        }
+        return responseData;
       } catch (error) {
         console.warn('API update failed, saving profile to localStorage only');
         
